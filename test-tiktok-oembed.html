@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikTok oEmbed Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        .input-group {
+            margin: 20px 0;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #ff0050;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #e60047;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+        .results.visible {
+            display: block;
+        }
+        pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .field-guide {
+            margin-top: 30px;
+            padding: 20px;
+            background: #e8f4fd;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .field-guide h2 {
+            margin-top: 0;
+            color: #0056b3;
+        }
+        .field-guide ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .field-guide li {
+            margin: 8px 0;
+        }
+        code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .error {
+            color: #d32f2f;
+            background: #ffebee;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+        .error.visible {
+            display: block;
+        }
+        .loading {
+            color: #666;
+            margin-top: 10px;
+            display: none;
+        }
+        .loading.visible {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 TikTok oEmbed Feasibility Test</h1>
+        <p>Paste a TikTok URL below to see what data TikTok's public oEmbed endpoint returns.</p>
+        
+        <div class="input-group">
+            <input type="text" id="tiktokUrl" placeholder="https://www.tiktok.com/@username/video/1234567890" />
+            <button id="fetchBtn" onclick="fetchTikTokData()">Fetch Data</button>
+        </div>
+        
+        <div id="loading" class="loading">Loading...</div>
+        <div id="error" class="error"></div>
+        
+        <div id="results" class="results">
+            <h2>📋 Raw JSON Response</h2>
+            <pre id="jsonOutput"></pre>
+        </div>
+        
+        <div class="field-guide">
+            <h2>📖 Field Guide (What each key means)</h2>
+            <ul>
+                <li><code>title</code> — The video's caption/description text</li>
+                <li><code>author_name</code> — The username of the creator</li>
+                <li><code>author_url</code> — Link to the creator's profile</li>
+                <li><code>thumbnail_url</code> — URL to a preview image of the video</li>
+                <li><code>thumbnail_width</code> / <code>thumbnail_height</code> — Dimensions of the thumbnail</li>
+                <li><code>html</code> — Embed code you can use to display the video on a webpage</li>
+                <li><code>width</code> / <code>height</code> — Dimensions of the embedded video player</li>
+                <li><code>version</code> — The oEmbed protocol version number</li>
+                <li><code>type</code> — Usually "video" for TikTok</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        async function fetchTikTokData() {
+            const urlInput = document.getElementById('tiktokUrl');
+            const url = urlInput.value.trim();
+            const fetchBtn = document.getElementById('fetchBtn');
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const results = document.getElementById('results');
+            const jsonOutput = document.getElementById('jsonOutput');
+            
+            // Reset UI
+            error.classList.remove('visible');
+            results.classList.remove('visible');
+            
+            if (!url) {
+                error.textContent = 'Please enter a TikTok URL';
+                error.classList.add('visible');
+                return;
+            }
+            
+            // Basic URL validation
+            if (!url.includes('tiktok.com')) {
+                error.textContent = 'Please enter a valid TikTok URL (it should contain tiktok.com)';
+                error.classList.add('visible');
+                return;
+            }
+            
+            loading.classList.add('visible');
+            fetchBtn.disabled = true;
+            
+            try {
+                // Construct oEmbed URL
+                const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
+                
+                const response = await fetch(oembedUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Pretty-print the JSON
+                jsonOutput.textContent = JSON.stringify(data, null, 2);
+                results.classList.add('visible');
+                
+            } catch (err) {
+                error.textContent = `Error: ${err.message}. This might be a CORS issue - TikTok may block direct browser requests. If so, we may need a tiny workaround.`;
+                error.classList.add('visible');
+                console.error('Fetch error:', err);
+            } finally {
+                loading.classList.remove('visible');
+                fetchBtn.disabled = false;
+            }
+        }
+        
+        // Allow pressing Enter to fetch
+        document.getElementById('tiktokUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                fetchTikTokData();
+            }
+        });
+    </script>
+</body>
+</html>
