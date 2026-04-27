@@ -7,3 +7,7 @@ caption-data.json
 transcript-output.txt
 extracted-places.json
 extracted-places-raw.txt
+final-extraction.json
+debug-raw-response.txt
+temp-video.mp4
+temp-audio.mp3
