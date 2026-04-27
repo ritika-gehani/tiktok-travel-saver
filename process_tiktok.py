@@ -24,8 +24,8 @@ import time
 import subprocess
 import urllib.request
 
+import base64
 import cv2
-import pytesseract
 from google import genai
 from google.genai import types
 
@@ -40,6 +40,24 @@ OUTPUT_FILE = os.path.join(PROJECT_DIR, "final-extraction.json")
 # Temp files (deleted at the end)
 TEMP_VIDEO = os.path.join(PROJECT_DIR, "temp-video.mp4")
 TEMP_AUDIO = os.path.join(PROJECT_DIR, "temp-audio.mp3")
+
+
+def gemini_call(client, prompt, max_retries=3):
+    """Call Gemini with automatic retry on transient network errors."""
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt
+            )
+            return response.text
+        except Exception as e:
+            if attempt < max_retries:
+                print(f"  ⚠️  Gemini call failed (attempt {attempt}/{max_retries}): {e}")
+                print(f"  Retrying in 5 seconds...")
+                time.sleep(5)
+            else:
+                raise
 
 
 def load_env():
@@ -189,30 +207,30 @@ def transcribe_audio():
             sys.exit(1)
         time.sleep(3)
 
-    transcript_text = poll["text"]
+    transcript_text = poll.get("text") or ""
+    if not transcript_text.strip():
+        print("  ⚠️  No spoken transcript detected. Continuing with caption + OCR only.")
+        return ""
     word_count = len(transcript_text.split())
     print(f"  Transcription complete ({word_count} words)")
     return transcript_text
 
 
 # ---------------------------------------------------------------------------
-# Step 4: Extract frames & run OCR
+# Steps 4-5: Extract frames & read on-screen text with Gemini Vision
 # ---------------------------------------------------------------------------
 
-def run_ocr():
-    """Extract video frames and run OCR with Tesseract."""
-    print("\n[Step 4/8] Running OCR on video frames...")
-
+def extract_frames(sample_interval=3):
+    """Extract sampled frames from video as JPEG bytes."""
     video = cv2.VideoCapture(TEMP_VIDEO)
     fps = video.get(cv2.CAP_PROP_FPS)
     total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     duration = total_frames / fps
-    sample_interval = 1  # 1 frame per second
 
     print(f"  Video: {duration:.1f}s, {fps:.0f} fps")
-    print(f"  Sampling ~{int(duration / sample_interval)} frames...")
+    print(f"  Sampling 1 frame every {sample_interval}s (~{int(duration / sample_interval)} frames)...")
 
-    results = []
+    frames = []
     frame_count = 0
     frames_to_skip = int(fps * sample_interval)
 
@@ -220,74 +238,55 @@ def run_ocr():
         success, frame = video.read()
         if not success:
             break
-
         if frame_count % frames_to_skip == 0:
-            timestamp = frame_count / fps
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            text = pytesseract.image_to_string(gray).strip()
-
-            if text:
-                results.append({
-                    "timestamp_seconds": round(timestamp, 2),
-                    "text": text
-                })
-
+            timestamp = round(frame_count / fps, 2)
+            _, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            frames.append({
+                "timestamp": timestamp,
+                "jpeg_bytes": jpeg.tobytes()
+            })
         frame_count += 1
 
     video.release()
-    print(f"  OCR complete: found text in {len(results)} frames")
-    return results
+    print(f"  Extracted {len(frames)} frames")
+    return frames
 
 
-# ---------------------------------------------------------------------------
-# Step 5: Clean OCR with Gemini
-# ---------------------------------------------------------------------------
+def read_screen_text(gemini_client, frames):
+    """Send sampled frames to Gemini Vision to read all on-screen text."""
+    print("\n[Step 5/8] Reading on-screen text with Gemini Vision...")
 
-def clean_ocr(gemini_client, ocr_results):
-    """Send raw OCR text to Gemini for cleanup."""
-    print("\n[Step 5/8] Cleaning OCR text with Gemini...")
-
-    if not ocr_results:
-        print("  No OCR text to clean (video may have no on-screen text)")
+    if not frames:
+        print("  No frames to analyze.")
         return ""
 
-    all_ocr_text = "\n\n".join([
-        f"[{entry['timestamp_seconds']}s] {entry['text']}"
-        for entry in ocr_results
-    ])
+    # Build multimodal content: images + prompt
+    contents = []
+    for f in frames:
+        contents.append(types.Part.from_bytes(data=f["jpeg_bytes"], mime_type="image/jpeg"))
 
-    prompt = f"""You are cleaning up OCR (optical character recognition) output from a TikTok travel video.
+    contents.append(types.Part.from_text(text="""These are frames from a TikTok travel video, sampled every few seconds.
 
-The OCR text below is messy and contains:
-- Typos and character errors (e.g., "restaur'ts" instead of "restaurants")
-- Random symbols and noise (e.g., "@@ ###", "\\\\", "===")
-- Duplicate text (the same text appears in multiple frames)
-- Partial words
+Please read ALL on-screen text visible in these frames. This includes:
+- Place names, restaurant names, shop names
+- Descriptions, subtitles, captions overlaid on the video
+- Prices, menu items, tips
+- Any other readable text, including stylized or decorative text
 
-Your task:
-1. Read through all the OCR text
-2. Fix obvious OCR errors to make text readable
-3. Remove random symbols and nonsense
-4. Remove duplicate text (keep only unique content)
-5. Organize the cleaned text as bullet points
-6. Each bullet point should include the place name and any relevant details
-7. Return only the cleaned, organized text
+Ignore TikTok UI elements (like/share buttons, usernames, follower counts).
 
-Do not add any new information. Only clean and organize what is already there.
+Return the text organized as bullet points, grouped by what appears to be the same place or topic. Remove duplicates (same text across multiple frames). Include the approximate timestamp if helpful.
 
-OCR Text:
-{all_ocr_text}
+Return only the extracted text, nothing else."""))
 
-Return the cleaned text as bullet points."""
-
+    print(f"  Sending {len(frames)} frames to Gemini Vision...")
     response = gemini_client.models.generate_content(
         model='gemini-2.5-flash',
-        contents=prompt
+        contents=contents
     )
-
-    cleaned = response.text
-    print(f"  Cleaned: {len(all_ocr_text)} chars → {len(cleaned)} chars ({100 * (1 - len(cleaned) / len(all_ocr_text)):.0f}% reduction)")
-    return cleaned
+    ocr_text = response.text
+    print(f"  Extracted {len(ocr_text)} chars of on-screen text")
+    return ocr_text
 
 
 # ---------------------------------------------------------------------------
@@ -309,18 +308,13 @@ def extract_places(gemini_client, caption, transcript, cleaned_ocr):
     with open(PROMPT_FILE, "r") as f:
         prompt_template = f.read()
 
-    prompt = prompt_template.replace("{CAPTION}", caption)
-    prompt = prompt.replace("{TRANSCRIPT}", transcript)
-    prompt = prompt.replace("{OCR_TEXT}", cleaned_ocr)
+    prompt = prompt_template.replace("{CAPTION}", caption if caption else "(No caption available)")
+    prompt = prompt.replace("{TRANSCRIPT}", transcript if transcript else "(No spoken transcript available)")
+    prompt = prompt.replace("{OCR_TEXT}", cleaned_ocr if cleaned_ocr else "(No on-screen text detected)")
 
     print(f"\n[Step 7/8] Extracting places with Gemini (15-30 seconds)...")
 
-    response = gemini_client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=prompt
-    )
-
-    raw = response.text.strip()
+    raw = gemini_call(gemini_client, prompt).strip()
 
     # Strip markdown code fences if present
     if raw.startswith("```"):
@@ -334,7 +328,7 @@ def extract_places(gemini_client, caption, transcript, cleaned_ocr):
         print(f"  ERROR: Failed to parse Gemini response as JSON: {e}")
         debug_file = os.path.join(PROJECT_DIR, "debug-raw-response.txt")
         with open(debug_file, "w") as f:
-            f.write(response.text)
+            f.write(raw)
         print(f"  Raw response saved to {debug_file} for debugging.")
         sys.exit(1)
 
@@ -432,9 +426,10 @@ def main():
         caption, author = fetch_caption(tiktok_url)
         download_video(tiktok_url)
         transcript = transcribe_audio()
-        ocr_results = run_ocr()
-        cleaned_ocr = clean_ocr(gemini_client, ocr_results)
-        result = extract_places(gemini_client, caption, transcript, cleaned_ocr)
+        print("\n[Step 4/8] Extracting video frames...")
+        frames = extract_frames(sample_interval=3)
+        screen_text = read_screen_text(gemini_client, frames)
+        result = extract_places(gemini_client, caption, transcript, screen_text)
         save_and_summarize(result)
     except KeyboardInterrupt:
         print("\n\nCancelled by user.")
