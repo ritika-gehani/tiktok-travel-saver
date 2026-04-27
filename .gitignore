@@ -2,3 +2,8 @@
 *.mp3
 *.mp4
 ocr-results.json
+cleaned-ocr.txt
+caption-data.json
+transcript-output.txt
+extracted-places.json
+extracted-places-raw.txt

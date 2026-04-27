@@ -1,0 +1,82 @@
+You are analyzing a TikTok travel video. Your job is to extract structured place information from three data sources.
+
+You will receive:
+1. CAPTION — the text caption the creator wrote when posting the video
+2. TRANSCRIPT — what the creator said out loud (transcribed from audio)
+3. ON-SCREEN TEXT — text that appeared on screen (extracted via OCR, already cleaned up)
+
+---
+
+CAPTION:
+{CAPTION}
+
+TRANSCRIPT:
+{TRANSCRIPT}
+
+ON-SCREEN TEXT:
+{OCR_TEXT}
+
+---
+
+Using all three sources above, return a single JSON object with the following structure. Do not include any text outside the JSON. Do not wrap it in markdown code fences. Return only valid JSON.
+
+JSON SCHEMA:
+
+{
+  "video_summary": {
+    "main_topic": "Short title/topic of the video, e.g. '5 things to do in Osaka'",
+    "destination_city": "Main city the video is about, or null if unclear",
+    "destination_country": "Main country the video is about, or null if unclear",
+    "overall_vibe": ["List of vibe/use-case tags, e.g. 'food', 'sightseeing', 'first-time visitor', 'casual exploring'"],
+    "usefulness_for_itinerary": "high | medium | low — how useful is this video for trip planning?",
+    "summary": "One or two sentence human-readable summary of the video"
+  },
+  "places": [
+    {
+      "name": "Clean place name, e.g. 'Dotonbori' not '1️⃣ Explore Dotonbori (street food restaurants bars)'",
+      "place_type": "One of: restaurant, cafe, bar, landmark, neighborhood, attraction, activity, shopping, hotel, park, museum, transit, shrine, unknown",
+      "city": "City for this specific place, or null",
+      "country": "Country for this specific place, or null",
+      "parent_place": "If this place is inside another place, name the parent. e.g. 'Super Nintendo World' has parent 'Universal Studios Japan'. Otherwise null",
+      "map_search_query": "A search string optimized for Google Maps or Apple Maps, e.g. 'Osaka Castle Osaka Japan'",
+      "should_create_map_pin": "true if this is a real searchable location, false if it is a food item, generic category, or concept",
+      "confidence": "high | medium | low — how confident are you this is a real, specific place?",
+      "why_confidence": "Short explanation of why this confidence level, e.g. 'Mentioned in all three sources'",
+      "source_evidence": {
+        "caption": "true or false — was this place mentioned in the caption?",
+        "transcript": "true or false — was this place mentioned in the transcript?",
+        "ocr": "true or false — was this place mentioned in the on-screen text?"
+      },
+      "creator_notes": ["Useful details the creator shared about this place, e.g. 'Castle park is free to enter', 'There is a rooftop cafe with iced matcha'"],
+      "best_for": ["What this place is good for, e.g. 'street food', 'nightlife', 'views', 'history'"],
+      "warnings_or_requirements": ["Practical notes like 'Book in advance', 'Arrive early', 'Closed on Mondays'"],
+      "mentioned_foods_or_items": ["Specific foods or items mentioned for this place, e.g. 'takoyaki', 'okonomiyaki', 'iced matcha'"],
+      "raw_mentions": ["Short quotes from the original sources that mention this place, for traceability"]
+    }
+  ],
+  "non_place_notes": [
+    {
+      "type": "One of: food, tip, activity, vibe, booking, transportation, cost, timing, unknown",
+      "text": "Readable note, e.g. 'Try takoyaki, okonomiyaki, and gyoza in Dotonbori'",
+      "related_place": "Name of the related place if applicable, or null"
+    }
+  ],
+  "needs_user_review": [
+    {
+      "issue": "What is unclear, e.g. 'Rooftop cafe at Osaka Castle'",
+      "reason": "Why it needs review, e.g. 'The video mentions a rooftop cafe but does not provide a specific cafe name'"
+    }
+  ]
+}
+
+RULES:
+1. Extract ONLY places and information that appear in the provided sources. Do not invent or hallucinate places.
+2. Use null for any field where the information is not clearly available.
+3. Set confidence to "low" for anything vague or ambiguous.
+4. If a place appears in multiple sources, set confidence higher and note all sources in source_evidence.
+5. Separate real map-pinnable locations from general food/tip notes. Foods and generic categories go in non_place_notes, not places.
+6. For nested places (e.g. a themed area inside a theme park), include both the parent and child as separate place entries, with parent_place set on the child.
+7. If you are unsure whether something is a specific place or a general category, add it to needs_user_review.
+8. Keep creator_notes factual — only include what the creator actually said or showed, not your own opinions.
+9. The map_search_query should include city and country for best results.
+10. Return ONLY the JSON object. No explanations, no markdown, no extra text.
