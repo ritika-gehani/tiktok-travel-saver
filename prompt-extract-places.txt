@@ -80,3 +80,5 @@ RULES:
 8. Keep creator_notes factual — only include what the creator actually said or showed, not your own opinions.
 9. The map_search_query should include city and country for best results.
 10. Return ONLY the JSON object. No explanations, no markdown, no extra text.
+11. ONLY include a place if the creator is clearly recommending, visiting, or reviewing it. Ignore places that only appear on map screenshots, Google Maps, navigation screens, or background signage that the creator is not actively featuring. Street names, neighborhood labels, hotel names, and other text visible on maps are NOT recommendations.
+12. When in doubt about whether the creator intentionally featured a place vs. it just being visible in the background or on a map, do NOT include it as a place. The bar for inclusion should be: "Did the creator go here, talk about it, or show it as a recommendation?"
