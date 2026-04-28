@@ -100,138 +100,262 @@ def cleanup_temp_files():
 def run_pipeline(tiktok_url):
     reset_state()
     pipeline_state["running"] = True
+    carousel = "/photo/" in tiktok_url
 
     try:
         load_env()
         google_key = os.environ.get("GOOGLE_API_KEY")
         assemblyai_key = os.environ.get("ASSEMBLYAI_API_KEY")
 
-        if not google_key or not assemblyai_key:
-            raise Exception("API keys not found in .env file.")
+        if not google_key:
+            raise Exception("GOOGLE_API_KEY not found in .env file.")
+        if not carousel and not assemblyai_key:
+            raise Exception("ASSEMBLYAI_API_KEY not found in .env file.")
 
         gemini_client = genai.Client(
             api_key=google_key,
             http_options=types.HttpOptions(api_version='v1')
         )
 
-        # Step 1: Caption
-        log("Fetching caption from TikTok...", step=1)
-        oembed_url = f"https://www.tiktok.com/oembed?url={tiktok_url}"
-        with urllib.request.urlopen(oembed_url) as response:
-            oembed_data = json.loads(response.read())
-        caption = oembed_data.get("title", "")
-        author = oembed_data.get("author_name", "")
-        log(f"Caption: {caption[:100]}{'...' if len(caption) > 100 else ''}")
-        log(f"Author: {author}")
+        if carousel:
+            # =============================================================
+            # Photo carousel pipeline
+            # =============================================================
+            log("Detected photo carousel — using image-only pipeline", step=1)
+            log("Fetching carousel data from TikTok page...")
 
-        # Step 2: Download
-        log("Downloading TikTok video...", step=2)
-        result = subprocess.run(
-            ["yt-dlp", "-o", TEMP_VIDEO, "--force-overwrites", tiktok_url],
-            capture_output=True, text=True, cwd=PROJECT_DIR
-        )
-        if result.returncode != 0:
-            raise Exception(f"Video download failed: {result.stderr[:200]}")
-        video_size = os.path.getsize(TEMP_VIDEO) / (1024 * 1024)
-        log(f"Video downloaded ({video_size:.1f} MB)")
+            ua_headers = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                )
+            }
 
-        log("Extracting audio...")
-        result = subprocess.run(
-            ["yt-dlp", "-x", "--audio-format", "mp3",
-             "-o", TEMP_AUDIO, "--force-overwrites", tiktok_url],
-            capture_output=True, text=True, cwd=PROJECT_DIR
-        )
-        if result.returncode != 0:
-            raise Exception(f"Audio extraction failed: {result.stderr[:200]}")
-        audio_size = os.path.getsize(TEMP_AUDIO) / (1024 * 1024)
-        log(f"Audio extracted ({audio_size:.1f} MB)")
+            caption, author, image_urls = "", "", []
+            scrape_ok = False
+            try:
+                req = urllib.request.Request(tiktok_url, headers=ua_headers)
+                with urllib.request.urlopen(req) as resp:
+                    html = resp.read().decode("utf-8")
 
-        # Step 3: Transcribe
-        log("Transcribing audio with AssemblyAI...", step=3)
-        base_url = "https://api.assemblyai.com"
+                match = re.search(
+                    r'<script\s+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>',
+                    html, re.DOTALL
+                )
+                if match:
+                    blob = json.loads(match.group(1))
+                    item = blob["__DEFAULT_SCOPE__"]["webapp.video-detail"]["itemInfo"]["itemStruct"]
+                    caption = item.get("desc", "")
+                    author = item.get("author", {}).get("uniqueId", "")
+                    image_post = item.get("imagePost", {})
+                    if image_post:
+                        for img in image_post.get("images", []):
+                            url_list = img.get("imageURL", {}).get("urlList", [])
+                            if url_list:
+                                image_urls.append(url_list[0])
+                    scrape_ok = True
+            except Exception as e:
+                log(f"⚠️ HTML scraping failed: {e}")
 
-        def api_request(method, path, data=None, binary=None):
-            headers = {"Authorization": assemblyai_key}
-            if data is not None:
-                body = json.dumps(data).encode()
-                headers["Content-Type"] = "application/json"
-            elif binary is not None:
-                body = binary
-                headers["Content-Type"] = "application/octet-stream"
-            else:
-                body = None
-            req = urllib.request.Request(base_url + path, data=body, headers=headers, method=method)
-            with urllib.request.urlopen(req) as r:
-                return json.loads(r.read())
+            if not scrape_ok:
+                log("Falling back to oEmbed for caption (no images available)...")
+                try:
+                    oembed_url = f"https://www.tiktok.com/oembed?url={tiktok_url}"
+                    with urllib.request.urlopen(oembed_url) as resp:
+                        oembed_data = json.loads(resp.read())
+                    caption = oembed_data.get("title", "")
+                    author = oembed_data.get("author_name", "")
+                except Exception:
+                    caption, author = "", ""
 
-        log("Uploading audio...")
-        with open(TEMP_AUDIO, "rb") as f:
-            audio_data = f.read()
-        upload_result = api_request("POST", "/v2/upload", binary=audio_data)
-        upload_url = upload_result["upload_url"]
-        log("Uploaded. Requesting transcription...")
+            log(f"Caption: {caption[:100]}{'...' if len(caption) > 100 else ''}")
+            log(f"Author: {author}")
+            log(f"Images found: {len(image_urls)}")
 
-        transcript_result = api_request("POST", "/v2/transcript", data={
-            "audio_url": upload_url,
-            "speech_models": ["universal-2"]
-        })
-        transcript_id = transcript_result["id"]
+            # Step 2: Download images
+            log(f"Downloading {len(image_urls)} carousel images...", step=2)
+            images = []
+            for i, img_url in enumerate(image_urls):
+                try:
+                    req = urllib.request.Request(img_url, headers=ua_headers)
+                    with urllib.request.urlopen(req) as resp:
+                        img_bytes = resp.read()
+                    images.append({"index": i + 1, "jpeg_bytes": img_bytes})
+                    log(f"Image {i + 1}/{len(image_urls)}: {len(img_bytes) / 1024:.0f} KB")
+                except Exception as e:
+                    log(f"⚠️ Failed to download image {i + 1}: {e}")
+            log(f"Downloaded {len(images)}/{len(image_urls)} images")
 
-        log("Waiting for transcription (15-30 seconds)...")
-        while True:
-            poll = api_request("GET", f"/v2/transcript/{transcript_id}")
-            status = poll["status"]
-            if status == "completed":
-                break
-            elif status == "error":
-                raise Exception(f"Transcription failed: {poll.get('error')}")
-            time.sleep(3)
-
-        transcript = poll.get("text") or ""
-        if not transcript.strip():
-            log("⚠️ No spoken transcript detected. Continuing with caption + OCR only.")
+            # Step 3: Skip audio
+            log("Skipping audio transcription (photo carousel has no audio)", step=3)
             transcript = ""
+            pipeline_state["transcript"] = transcript
+
+            # Step 4-5: Send images to Gemini Vision
+            log("Reading on-screen text from carousel images with Gemini Vision...", step=4)
+            if not images:
+                log("No images to analyze.")
+                screen_text = ""
+            else:
+                contents = []
+                for img in images:
+                    raw_bytes = img["jpeg_bytes"]
+                    if raw_bytes[:4] == b'RIFF':
+                        mime = "image/webp"
+                    elif raw_bytes[:8] == b'\x89PNG\r\n\x1a\n':
+                        mime = "image/png"
+                    else:
+                        mime = "image/jpeg"
+                    contents.append(types.Part.from_bytes(data=raw_bytes, mime_type=mime))
+
+                contents.append(types.Part.from_text(text="""These are images from a TikTok photo carousel (slideshow) about travel.
+
+Please read ALL on-screen text visible in these images. This includes:
+- Place names, restaurant names, shop names
+- Descriptions, subtitles, captions overlaid on the images
+- Prices, menu items, tips
+- Any other readable text, including stylized or decorative text
+
+Ignore TikTok UI elements (like/share buttons, usernames, follower counts).
+Ignore text from map screenshots, Google Maps, navigation apps, or any map-like interface.
+
+Return the text organized as bullet points, grouped by what appears to be the same place or topic. Remove duplicates. Include the slide number if helpful.
+
+Return only the extracted text, nothing else."""))
+
+                log(f"Sending {len(images)} images to Gemini Vision...")
+                response = gemini_client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=contents
+                )
+                screen_text = response.text
+                log(f"Extracted {len(screen_text)} chars of on-screen text")
+            pipeline_state["screen_text"] = screen_text
+
         else:
-            log(f"Transcription complete ({len(transcript.split())} words)")
-        pipeline_state["transcript"] = transcript
+            # =============================================================
+            # Normal video pipeline
+            # =============================================================
 
-        # Step 4: Extract frames
-        log("Extracting video frames...", step=4)
-        video = cv2.VideoCapture(TEMP_VIDEO)
-        fps = video.get(cv2.CAP_PROP_FPS)
-        total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-        duration = total_frames / fps
-        sample_interval = 3
-        log(f"Video: {duration:.1f}s, {fps:.0f} fps — sampling 1 frame every {sample_interval}s")
+            # Step 1: Caption
+            log("Fetching caption from TikTok...", step=1)
+            oembed_url = f"https://www.tiktok.com/oembed?url={tiktok_url}"
+            with urllib.request.urlopen(oembed_url) as response:
+                oembed_data = json.loads(response.read())
+            caption = oembed_data.get("title", "")
+            author = oembed_data.get("author_name", "")
+            log(f"Caption: {caption[:100]}{'...' if len(caption) > 100 else ''}")
+            log(f"Author: {author}")
 
-        frames = []
-        frame_count = 0
-        frames_to_skip = int(fps * sample_interval)
-        while True:
-            success, frame = video.read()
-            if not success:
-                break
-            if frame_count % frames_to_skip == 0:
-                timestamp = round(frame_count / fps, 2)
-                _, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
-                frames.append({
-                    "timestamp": timestamp,
-                    "jpeg_bytes": jpeg.tobytes()
-                })
-            frame_count += 1
-        video.release()
-        log(f"Extracted {len(frames)} frames")
+            # Step 2: Download
+            log("Downloading TikTok video...", step=2)
+            result = subprocess.run(
+                ["yt-dlp", "-o", TEMP_VIDEO, "--force-overwrites", tiktok_url],
+                capture_output=True, text=True, cwd=PROJECT_DIR
+            )
+            if result.returncode != 0:
+                raise Exception(f"Video download failed: {result.stderr[:200]}")
+            video_size = os.path.getsize(TEMP_VIDEO) / (1024 * 1024)
+            log(f"Video downloaded ({video_size:.1f} MB)")
 
-        # Step 5: Read on-screen text with Gemini Vision
-        log("Reading on-screen text with Gemini Vision...", step=5)
-        if not frames:
-            log("No frames to analyze.")
-            screen_text = ""
-        else:
-            contents = []
-            for f in frames:
-                contents.append(types.Part.from_bytes(data=f["jpeg_bytes"], mime_type="image/jpeg"))
-            contents.append(types.Part.from_text(text="""These are frames from a TikTok travel video, sampled every few seconds.
+            log("Extracting audio...")
+            result = subprocess.run(
+                ["yt-dlp", "-x", "--audio-format", "mp3",
+                 "-o", TEMP_AUDIO, "--force-overwrites", tiktok_url],
+                capture_output=True, text=True, cwd=PROJECT_DIR
+            )
+            if result.returncode != 0:
+                raise Exception(f"Audio extraction failed: {result.stderr[:200]}")
+            audio_size = os.path.getsize(TEMP_AUDIO) / (1024 * 1024)
+            log(f"Audio extracted ({audio_size:.1f} MB)")
+
+            # Step 3: Transcribe
+            log("Transcribing audio with AssemblyAI...", step=3)
+            base_url = "https://api.assemblyai.com"
+
+            def api_request(method, path, data=None, binary=None):
+                headers = {"Authorization": assemblyai_key}
+                if data is not None:
+                    body = json.dumps(data).encode()
+                    headers["Content-Type"] = "application/json"
+                elif binary is not None:
+                    body = binary
+                    headers["Content-Type"] = "application/octet-stream"
+                else:
+                    body = None
+                req = urllib.request.Request(base_url + path, data=body, headers=headers, method=method)
+                with urllib.request.urlopen(req) as r:
+                    return json.loads(r.read())
+
+            log("Uploading audio...")
+            with open(TEMP_AUDIO, "rb") as f:
+                audio_data = f.read()
+            upload_result = api_request("POST", "/v2/upload", binary=audio_data)
+            upload_url = upload_result["upload_url"]
+            log("Uploaded. Requesting transcription...")
+
+            transcript_result = api_request("POST", "/v2/transcript", data={
+                "audio_url": upload_url,
+                "speech_models": ["universal-2"]
+            })
+            transcript_id = transcript_result["id"]
+
+            log("Waiting for transcription (15-30 seconds)...")
+            while True:
+                poll = api_request("GET", f"/v2/transcript/{transcript_id}")
+                status = poll["status"]
+                if status == "completed":
+                    break
+                elif status == "error":
+                    raise Exception(f"Transcription failed: {poll.get('error')}")
+                time.sleep(3)
+
+            transcript = poll.get("text") or ""
+            if not transcript.strip():
+                log("⚠️ No spoken transcript detected. Continuing with caption + OCR only.")
+                transcript = ""
+            else:
+                log(f"Transcription complete ({len(transcript.split())} words)")
+            pipeline_state["transcript"] = transcript
+
+            # Step 4: Extract frames
+            log("Extracting video frames...", step=4)
+            video = cv2.VideoCapture(TEMP_VIDEO)
+            fps = video.get(cv2.CAP_PROP_FPS)
+            total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+            duration = total_frames / fps
+            sample_interval = 3
+            log(f"Video: {duration:.1f}s, {fps:.0f} fps — sampling 1 frame every {sample_interval}s")
+
+            frames = []
+            frame_count = 0
+            frames_to_skip = int(fps * sample_interval)
+            while True:
+                success, frame = video.read()
+                if not success:
+                    break
+                if frame_count % frames_to_skip == 0:
+                    timestamp = round(frame_count / fps, 2)
+                    _, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                    frames.append({
+                        "timestamp": timestamp,
+                        "jpeg_bytes": jpeg.tobytes()
+                    })
+                frame_count += 1
+            video.release()
+            log(f"Extracted {len(frames)} frames")
+
+            # Step 5: Read on-screen text with Gemini Vision
+            log("Reading on-screen text with Gemini Vision...", step=5)
+            if not frames:
+                log("No frames to analyze.")
+                screen_text = ""
+            else:
+                contents = []
+                for f in frames:
+                    contents.append(types.Part.from_bytes(data=f["jpeg_bytes"], mime_type="image/jpeg"))
+                contents.append(types.Part.from_text(text="""These are frames from a TikTok travel video, sampled every few seconds.
 
 Please read ALL on-screen text visible in these frames. This includes:
 - Place names, restaurant names, shop names
@@ -246,14 +370,18 @@ Return the text organized as bullet points, grouped by what appears to be the sa
 
 Return only the extracted text, nothing else."""))
 
-            log(f"Sending {len(frames)} frames to Gemini Vision...")
-            response = gemini_client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=contents
-            )
-            screen_text = response.text
-            log(f"Extracted {len(screen_text)} chars of on-screen text")
-        pipeline_state["screen_text"] = screen_text
+                log(f"Sending {len(frames)} frames to Gemini Vision...")
+                response = gemini_client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=contents
+                )
+                screen_text = response.text
+                log(f"Extracted {len(screen_text)} chars of on-screen text")
+            pipeline_state["screen_text"] = screen_text
+
+        # ================================================================
+        # Steps 6-8 are shared by both pipelines
+        # ================================================================
 
         # Step 6: Combine
         log("Combining all sources...", step=6)

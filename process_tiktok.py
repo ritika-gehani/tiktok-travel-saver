@@ -291,6 +291,157 @@ Return only the extracted text, nothing else."""))
 
 
 # ---------------------------------------------------------------------------
+# Photo Carousel Support
+# ---------------------------------------------------------------------------
+
+def is_photo_carousel(url):
+    """Check if the URL is a TikTok photo carousel (not a video)."""
+    return "/photo/" in url
+
+
+def fetch_carousel_data(tiktok_url):
+    """Scrape TikTok page HTML to get caption, author, and image URLs for a photo carousel.
+
+    Returns (caption, author, image_urls).
+    Returns (None, None, []) if scraping fails so the caller can fall back.
+    """
+    print("\n[Step 1/8] Fetching carousel data from TikTok page...")
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
+    }
+
+    req = urllib.request.Request(tiktok_url, headers=headers)
+    try:
+        with urllib.request.urlopen(req) as response:
+            html = response.read().decode("utf-8")
+    except Exception as e:
+        print(f"  WARNING: Failed to fetch page: {e}")
+        print("  TikTok may be blocking the request. Falling back to caption-only mode.")
+        return None, None, []
+
+    # Extract __UNIVERSAL_DATA_FOR_REHYDRATION__ JSON blob
+    match = re.search(
+        r'<script\s+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>',
+        html, re.DOTALL
+    )
+    if not match:
+        print("  WARNING: Could not find __UNIVERSAL_DATA_FOR_REHYDRATION__ in page HTML.")
+        print("  Falling back to caption-only mode.")
+        return None, None, []
+
+    try:
+        data = json.loads(match.group(1))
+    except json.JSONDecodeError as e:
+        print(f"  WARNING: Failed to parse JSON blob: {e}")
+        return None, None, []
+
+    # Navigate to itemStruct
+    try:
+        item = data["__DEFAULT_SCOPE__"]["webapp.video-detail"]["itemInfo"]["itemStruct"]
+    except (KeyError, TypeError):
+        print("  WARNING: Could not find itemStruct in JSON. TikTok may have changed their page structure.")
+        return None, None, []
+
+    caption = item.get("desc", "")
+    author = item.get("author", {}).get("uniqueId", "")
+
+    # Extract image URLs from imagePost
+    image_urls = []
+    image_post = item.get("imagePost", {})
+    if image_post:
+        images = image_post.get("images", [])
+        for img in images:
+            url_list = img.get("imageURL", {}).get("urlList", [])
+            if url_list:
+                image_urls.append(url_list[0])
+
+    print(f"  Caption: {caption[:80]}{'...' if len(caption) > 80 else ''}")
+    print(f"  Author: {author}")
+    print(f"  Images found: {len(image_urls)}")
+
+    return caption, author, image_urls
+
+
+def download_carousel_images(image_urls):
+    """Download carousel images into memory. Returns list of dicts with jpeg_bytes."""
+    print(f"\n[Step 2/8] Downloading {len(image_urls)} carousel images...")
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
+    }
+
+    images = []
+    for i, url in enumerate(image_urls):
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req) as response:
+                img_bytes = response.read()
+            images.append({"index": i + 1, "jpeg_bytes": img_bytes})
+            size_kb = len(img_bytes) / 1024
+            print(f"  Image {i + 1}/{len(image_urls)}: {size_kb:.0f} KB")
+        except Exception as e:
+            print(f"  WARNING: Failed to download image {i + 1}: {e}")
+
+    print(f"  Downloaded {len(images)}/{len(image_urls)} images")
+    return images
+
+
+def read_carousel_images(gemini_client, images):
+    """Send carousel images to Gemini Vision to read all on-screen text."""
+    print("\n[Step 4/8] Reading on-screen text from carousel images with Gemini Vision...")
+
+    if not images:
+        print("  No images to analyze.")
+        return ""
+
+    # Build multimodal content: images + prompt
+    contents = []
+    for img in images:
+        raw = img["jpeg_bytes"]
+        # Auto-detect image format
+        if raw[:4] == b'RIFF':
+            mime = "image/webp"
+        elif raw[:8] == b'\x89PNG\r\n\x1a\n':
+            mime = "image/png"
+        else:
+            mime = "image/jpeg"
+        contents.append(types.Part.from_bytes(data=raw, mime_type=mime))
+
+    contents.append(types.Part.from_text(text="""These are images from a TikTok photo carousel (slideshow) about travel.
+
+Please read ALL on-screen text visible in these images. This includes:
+- Place names, restaurant names, shop names
+- Descriptions, subtitles, captions overlaid on the images
+- Prices, menu items, tips
+- Any other readable text, including stylized or decorative text
+
+Ignore TikTok UI elements (like/share buttons, usernames, follower counts).
+Ignore text from map screenshots, Google Maps, navigation apps, or any map-like interface.
+
+Return the text organized as bullet points, grouped by what appears to be the same place or topic. Remove duplicates. Include the slide number if helpful.
+
+Return only the extracted text, nothing else."""))
+
+    print(f"  Sending {len(images)} images to Gemini Vision...")
+    response = gemini_client.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=contents
+    )
+    screen_text = response.text
+    print(f"  Extracted {len(screen_text)} chars of on-screen text")
+    return screen_text
+
+
+# ---------------------------------------------------------------------------
 # Steps 6-7: Combine sources & extract places with Gemini
 # ---------------------------------------------------------------------------
 
@@ -399,11 +550,14 @@ def main():
         sys.exit(1)
 
     tiktok_url = sys.argv[1]
+    carousel = is_photo_carousel(tiktok_url)
 
     print("=" * 60)
     print("TikTok Travel Saver — Full Pipeline")
     print("=" * 60)
     print(f"URL: {tiktok_url}")
+    if carousel:
+        print("Mode: Photo Carousel (no video/audio)")
 
     # Load environment
     load_env()
@@ -412,11 +566,11 @@ def main():
     if not os.environ.get("GOOGLE_API_KEY"):
         print("ERROR: GOOGLE_API_KEY not found in .env file.")
         sys.exit(1)
-    if not os.environ.get("ASSEMBLYAI_API_KEY"):
+    if not carousel and not os.environ.get("ASSEMBLYAI_API_KEY"):
         print("ERROR: ASSEMBLYAI_API_KEY not found in .env file.")
         sys.exit(1)
 
-    # Initialize Gemini client (reused for steps 5 and 7)
+    # Initialize Gemini client (reused for vision + extraction)
     gemini_client = genai.Client(
         api_key=os.environ["GOOGLE_API_KEY"],
         http_options=types.HttpOptions(api_version='v1')
@@ -424,14 +578,37 @@ def main():
 
     # Run pipeline
     try:
-        caption, author = fetch_caption(tiktok_url)
-        download_video(tiktok_url)
-        transcript = transcribe_audio()
-        print("\n[Step 4/8] Extracting video frames...")
-        frames = extract_frames(sample_interval=3)
-        screen_text = read_screen_text(gemini_client, frames)
-        result = extract_places(gemini_client, caption, transcript, screen_text)
-        save_and_summarize(result)
+        if carousel:
+            # --- Photo carousel pipeline ---
+            caption, author, image_urls = fetch_carousel_data(tiktok_url)
+
+            if caption is None:
+                # HTML scraping failed — try oEmbed as fallback for caption
+                print("\n  Falling back to oEmbed for caption...")
+                try:
+                    caption, author = fetch_caption(tiktok_url)
+                except Exception:
+                    caption, author = "", ""
+                image_urls = []
+
+            images = download_carousel_images(image_urls) if image_urls else []
+
+            print("\n[Step 3/8] Skipping audio transcription (photo carousel has no audio)")
+            transcript = ""
+
+            screen_text = read_carousel_images(gemini_client, images)
+            result = extract_places(gemini_client, caption, transcript, screen_text)
+            save_and_summarize(result)
+        else:
+            # --- Normal video pipeline ---
+            caption, author = fetch_caption(tiktok_url)
+            download_video(tiktok_url)
+            transcript = transcribe_audio()
+            print("\n[Step 4/8] Extracting video frames...")
+            frames = extract_frames(sample_interval=3)
+            screen_text = read_screen_text(gemini_client, frames)
+            result = extract_places(gemini_client, caption, transcript, screen_text)
+            save_and_summarize(result)
     except KeyboardInterrupt:
         print("\n\nCancelled by user.")
         cleanup_temp_files()
