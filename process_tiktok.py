@@ -302,7 +302,12 @@ def is_photo_carousel(url):
 
 def fetch_carousel_data(tiktok_url):
     """Use a headless Chromium browser (Playwright) to load the TikTok carousel page
-    and extract caption, author, and image URLs from the fully-rendered JSON blob.
+    and extract caption, author, and image URLs from the rendered DOM.
+
+    Extracts:
+    - Caption: hashtags parsed from visible body text
+    - Author: username visible in page body
+    - Images: src attributes of rendered photomode img tags (deduplicated)
 
     Returns (caption, author, image_urls).
     Returns (None, None, []) if scraping fails so the caller can fall back.
@@ -311,7 +316,10 @@ def fetch_carousel_data(tiktok_url):
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(
+                headless=True,
+                args=["--disable-blink-features=AutomationControlled"]
+            )
             context = browser.new_context(
                 user_agent=(
                     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -320,50 +328,46 @@ def fetch_carousel_data(tiktok_url):
                 )
             )
             page = context.new_page()
+            page.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+            )
             print("  Loading TikTok page (this takes ~10 seconds)...")
             page.goto(tiktok_url, wait_until="networkidle", timeout=30000)
-            html = page.content()
+
+            # Extract visible page text (contains author + hashtags)
+            body_text = page.inner_text("body")
+
+            # Extract all rendered img src URLs
+            all_imgs = page.eval_on_selector_all(
+                "img", "els => els.map(e => e.src)"
+            )
+
             browser.close()
     except Exception as e:
         print(f"  WARNING: Playwright failed to load page: {e}")
         return None, None, []
 
-    # Extract __UNIVERSAL_DATA_FOR_REHYDRATION__ JSON blob
-    match = re.search(
-        r'<script\s+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>',
-        html, re.DOTALL
-    )
-    if not match:
-        print("  WARNING: Could not find __UNIVERSAL_DATA_FOR_REHYDRATION__ in rendered page.")
-        return None, None, []
+    # Parse author from body text (appears as "username_\n· 1-N")
+    author = ""
+    author_match = re.search(r'^([^\s]+)\s*\n\s*·\s*1-\d+', body_text, re.MULTILINE)
+    if author_match:
+        author = author_match.group(1).rstrip("_")
 
-    try:
-        data = json.loads(match.group(1))
-    except json.JSONDecodeError as e:
-        print(f"  WARNING: Failed to parse JSON blob: {e}")
-        return None, None, []
+    # Parse caption: collect all hashtags visible in body text
+    hashtags = re.findall(r'#\w+', body_text)
+    caption = " ".join(dict.fromkeys(hashtags))  # deduplicated, order-preserved
 
-    # Navigate to itemStruct
-    try:
-        item = data["__DEFAULT_SCOPE__"]["webapp.video-detail"]["itemInfo"]["itemStruct"]
-    except (KeyError, TypeError):
-        # Dump available keys to help diagnose future structure changes
-        ds_keys = list(data.get("__DEFAULT_SCOPE__", {}).keys())
-        print(f"  WARNING: Could not find itemStruct. DEFAULT_SCOPE keys: {ds_keys}")
-        return None, None, []
-
-    caption = item.get("desc", "")
-    author = item.get("author", {}).get("uniqueId", "")
-
-    # Extract image URLs from imagePost
+    # Filter to carousel slide images only (photomode URLs, not avatars/icons)
+    seen = set()
     image_urls = []
-    image_post = item.get("imagePost", {})
-    if image_post:
-        images = image_post.get("images", [])
-        for img in images:
-            url_list = img.get("imageURL", {}).get("urlList", [])
-            if url_list:
-                image_urls.append(url_list[0])
+    for src in all_imgs:
+        if "photomode-image" in src and src not in seen:
+            seen.add(src)
+            image_urls.append(src)
+
+    if not image_urls:
+        print("  WARNING: No carousel images found in rendered page.")
+        return None, None, []
 
     print(f"  Caption: {caption[:80]}{'...' if len(caption) > 80 else ''}")
     print(f"  Author: {author}")

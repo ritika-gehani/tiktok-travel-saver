@@ -130,7 +130,10 @@ def run_pipeline(tiktok_url):
             scrape_ok = False
             try:
                 with sync_playwright() as p:
-                    browser = p.chromium.launch(headless=True)
+                    browser = p.chromium.launch(
+                        headless=True,
+                        args=["--disable-blink-features=AutomationControlled"]
+                    )
                     context = browser.new_context(
                         user_agent=(
                             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -139,35 +142,40 @@ def run_pipeline(tiktok_url):
                         )
                     )
                     pw_page = context.new_page()
+                    pw_page.add_init_script(
+                        "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+                    )
                     pw_page.goto(tiktok_url, wait_until="networkidle", timeout=30000)
-                    html = pw_page.content()
+
+                    body_text = pw_page.inner_text("body")
+                    all_imgs = pw_page.eval_on_selector_all("img", "els => els.map(e => e.src)")
                     browser.close()
 
-                match = re.search(
-                    r'<script\s+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>',
-                    html, re.DOTALL
-                )
-                if match:
-                    blob = json.loads(match.group(1))
-                    item = blob["__DEFAULT_SCOPE__"]["webapp.video-detail"]["itemInfo"]["itemStruct"]
-                    caption = item.get("desc", "")
-                    author = item.get("author", {}).get("uniqueId", "")
-                    image_post = item.get("imagePost", {})
-                    if image_post:
-                        for img in image_post.get("images", []):
-                            url_list = img.get("imageURL", {}).get("urlList", [])
-                            if url_list:
-                                image_urls.append(url_list[0])
-                    scrape_ok = True
-                else:
-                    ds_keys = list(json.loads(match.group(1) if match else '{}').get('__DEFAULT_SCOPE__', {}).keys()) if match else []
-                    log(f"⚠️ Could not find data blob in rendered page.")
+                # Parse author (appears as "username_\n· 1-N" in body text)
+                author_match = re.search(r'^([^\s]+)\s*\n\s*·\s*1-\d+', body_text, re.MULTILINE)
+                if author_match:
+                    author = author_match.group(1).rstrip("_")
+
+                # Caption = deduplicated hashtags from visible text
+                hashtags = re.findall(r'#\w+', body_text)
+                caption = " ".join(dict.fromkeys(hashtags))
+
+                # Images = photomode img src URLs, deduplicated
+                seen = set()
+                for src in all_imgs:
+                    if "photomode-image" in src and src not in seen:
+                        seen.add(src)
+                        image_urls.append(src)
+
+                scrape_ok = bool(image_urls)
+                if not scrape_ok:
+                    log("⚠️ No carousel images found in rendered page.")
             except Exception as e:
                 log(f"⚠️ Playwright scraping failed: {e}")
 
             if not scrape_ok:
                 log("Falling back to caption-only mode (no images available)...")
-                caption, author = "", ""
+                caption, author = caption or "", author or ""
 
             log(f"Caption: {caption[:100]}{'...' if len(caption) > 100 else ''}")
             log(f"Author: {author}")
