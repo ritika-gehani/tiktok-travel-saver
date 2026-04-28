@@ -240,6 +240,7 @@ Please read ALL on-screen text visible in these frames. This includes:
 - Any other readable text, including stylized or decorative text
 
 Ignore TikTok UI elements (like/share buttons, usernames, follower counts).
+Ignore text from map screenshots, Google Maps, navigation apps, or any map-like interface (hotel names, street labels, transit info visible on maps are NOT real recommendations from the creator).
 
 Return the text organized as bullet points, grouped by what appears to be the same place or topic. Remove duplicates (same text across multiple frames). Include the approximate timestamp if helpful.
 
