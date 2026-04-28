@@ -22,6 +22,7 @@ import base64
 import cv2
 from google import genai
 from google.genai import types
+from playwright.sync_api import sync_playwright
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROMPT_FILE = os.path.join(PROJECT_DIR, "prompt-extract-places.txt")
@@ -122,22 +123,25 @@ def run_pipeline(tiktok_url):
             # Photo carousel pipeline
             # =============================================================
             log("Detected photo carousel — using image-only pipeline", step=1)
-            log("Fetching carousel data from TikTok page...")
-
-            ua_headers = {
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                )
-            }
+            log("Fetching carousel data with headless browser (Playwright)...")
+            log("Loading TikTok page (this takes ~10 seconds)...")
 
             caption, author, image_urls = "", "", []
             scrape_ok = False
             try:
-                req = urllib.request.Request(tiktok_url, headers=ua_headers)
-                with urllib.request.urlopen(req) as resp:
-                    html = resp.read().decode("utf-8")
+                with sync_playwright() as p:
+                    browser = p.chromium.launch(headless=True)
+                    context = browser.new_context(
+                        user_agent=(
+                            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/120.0.0.0 Safari/537.36"
+                        )
+                    )
+                    pw_page = context.new_page()
+                    pw_page.goto(tiktok_url, wait_until="networkidle", timeout=30000)
+                    html = pw_page.content()
+                    browser.close()
 
                 match = re.search(
                     r'<script\s+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>',
@@ -155,30 +159,27 @@ def run_pipeline(tiktok_url):
                             if url_list:
                                 image_urls.append(url_list[0])
                     scrape_ok = True
+                else:
+                    ds_keys = list(json.loads(match.group(1) if match else '{}').get('__DEFAULT_SCOPE__', {}).keys()) if match else []
+                    log(f"⚠️ Could not find data blob in rendered page.")
             except Exception as e:
-                log(f"⚠️ HTML scraping failed: {e}")
+                log(f"⚠️ Playwright scraping failed: {e}")
 
             if not scrape_ok:
-                log("Falling back to oEmbed for caption (no images available)...")
-                try:
-                    oembed_url = f"https://www.tiktok.com/oembed?url={tiktok_url}"
-                    with urllib.request.urlopen(oembed_url) as resp:
-                        oembed_data = json.loads(resp.read())
-                    caption = oembed_data.get("title", "")
-                    author = oembed_data.get("author_name", "")
-                except Exception:
-                    caption, author = "", ""
+                log("Falling back to caption-only mode (no images available)...")
+                caption, author = "", ""
 
             log(f"Caption: {caption[:100]}{'...' if len(caption) > 100 else ''}")
             log(f"Author: {author}")
             log(f"Images found: {len(image_urls)}")
 
             # Step 2: Download images
+            _img_headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
             log(f"Downloading {len(image_urls)} carousel images...", step=2)
             images = []
             for i, img_url in enumerate(image_urls):
                 try:
-                    req = urllib.request.Request(img_url, headers=ua_headers)
+                    req = urllib.request.Request(img_url, headers=_img_headers)
                     with urllib.request.urlopen(req) as resp:
                         img_bytes = resp.read()
                     images.append({"index": i + 1, "jpeg_bytes": img_bytes})

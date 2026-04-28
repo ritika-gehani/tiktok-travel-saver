@@ -28,6 +28,7 @@ import base64
 import cv2
 from google import genai
 from google.genai import types
+from playwright.sync_api import sync_playwright
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -300,28 +301,31 @@ def is_photo_carousel(url):
 
 
 def fetch_carousel_data(tiktok_url):
-    """Scrape TikTok page HTML to get caption, author, and image URLs for a photo carousel.
+    """Use a headless Chromium browser (Playwright) to load the TikTok carousel page
+    and extract caption, author, and image URLs from the fully-rendered JSON blob.
 
     Returns (caption, author, image_urls).
     Returns (None, None, []) if scraping fails so the caller can fall back.
     """
-    print("\n[Step 1/8] Fetching carousel data from TikTok page...")
+    print("\n[Step 1/8] Fetching carousel data with headless browser (Playwright)...")
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        )
-    }
-
-    req = urllib.request.Request(tiktok_url, headers=headers)
     try:
-        with urllib.request.urlopen(req) as response:
-            html = response.read().decode("utf-8")
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                )
+            )
+            page = context.new_page()
+            print("  Loading TikTok page (this takes ~10 seconds)...")
+            page.goto(tiktok_url, wait_until="networkidle", timeout=30000)
+            html = page.content()
+            browser.close()
     except Exception as e:
-        print(f"  WARNING: Failed to fetch page: {e}")
-        print("  TikTok may be blocking the request. Falling back to caption-only mode.")
+        print(f"  WARNING: Playwright failed to load page: {e}")
         return None, None, []
 
     # Extract __UNIVERSAL_DATA_FOR_REHYDRATION__ JSON blob
@@ -330,8 +334,7 @@ def fetch_carousel_data(tiktok_url):
         html, re.DOTALL
     )
     if not match:
-        print("  WARNING: Could not find __UNIVERSAL_DATA_FOR_REHYDRATION__ in page HTML.")
-        print("  Falling back to caption-only mode.")
+        print("  WARNING: Could not find __UNIVERSAL_DATA_FOR_REHYDRATION__ in rendered page.")
         return None, None, []
 
     try:
@@ -344,7 +347,9 @@ def fetch_carousel_data(tiktok_url):
     try:
         item = data["__DEFAULT_SCOPE__"]["webapp.video-detail"]["itemInfo"]["itemStruct"]
     except (KeyError, TypeError):
-        print("  WARNING: Could not find itemStruct in JSON. TikTok may have changed their page structure.")
+        # Dump available keys to help diagnose future structure changes
+        ds_keys = list(data.get("__DEFAULT_SCOPE__", {}).keys())
+        print(f"  WARNING: Could not find itemStruct. DEFAULT_SCOPE keys: {ds_keys}")
         return None, None, []
 
     caption = item.get("desc", "")
