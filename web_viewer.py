@@ -98,9 +98,28 @@ def cleanup_temp_files():
             os.remove(filepath)
 
 
+def resolve_short_url(url):
+    """Follow redirects to expand short TikTok links (e.g. tiktok.com/t/...)."""
+    if "/t/" not in url:
+        return url
+    log("Short link detected — resolving redirect...")
+    req = urllib.request.Request(url, method="HEAD", headers={
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+    })
+    try:
+        with urllib.request.urlopen(req) as resp:
+            resolved = resp.url
+        log(f"Resolved to: {resolved}")
+        return resolved
+    except Exception as e:
+        log(f"⚠️ Could not resolve short link: {e}")
+        return url
+
+
 def run_pipeline(tiktok_url):
     reset_state()
     pipeline_state["running"] = True
+    tiktok_url = resolve_short_url(tiktok_url)
     carousel = "/photo/" in tiktok_url
 
     try:

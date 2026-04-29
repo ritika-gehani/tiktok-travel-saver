@@ -292,6 +292,33 @@ Return only the extracted text, nothing else."""))
 
 
 # ---------------------------------------------------------------------------
+# URL Resolution
+# ---------------------------------------------------------------------------
+
+def resolve_short_url(url):
+    """Follow redirects to expand short TikTok links (e.g. tiktok.com/t/...)
+    into full URLs (e.g. tiktok.com/@user/photo/...).
+
+    Returns the final URL after all redirects.
+    """
+    if "/t/" not in url:
+        return url
+
+    print(f"  Short link detected — resolving redirect...")
+    req = urllib.request.Request(url, method="HEAD", headers={
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+    })
+    try:
+        with urllib.request.urlopen(req) as resp:
+            resolved = resp.url
+        print(f"  Resolved to: {resolved}")
+        return resolved
+    except Exception as e:
+        print(f"  WARNING: Could not resolve short link: {e}")
+        return url
+
+
+# ---------------------------------------------------------------------------
 # Photo Carousel Support
 # ---------------------------------------------------------------------------
 
@@ -558,7 +585,7 @@ def main():
         print("Example: python3 process_tiktok.py \"https://www.tiktok.com/@nina.pemb/video/7497965157923032342\"")
         sys.exit(1)
 
-    tiktok_url = sys.argv[1]
+    tiktok_url = resolve_short_url(sys.argv[1])
     carousel = is_photo_carousel(tiktok_url)
 
     print("=" * 60)
