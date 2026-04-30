@@ -13,6 +13,8 @@ Deep dive into how TikTok Travel Saver works — the pipeline, scraping, AI extr
 - [Output Schema](#output-schema)
 - [Output Field Reference](#output-field-reference)
 - [Real Example Output](#real-example-output)
+- [Web UI Architecture](#web-ui-architecture)
+- [Persistence (Supabase)](#persistence-supabase)
 - [Technical Stack](#technical-stack)
 - [Known Limitations](#known-limitations)
 
@@ -260,6 +262,96 @@ Common reasons for review flags:
 
 ---
 
+## Web UI Architecture
+
+The web UI is a single-process Python HTTP server that serves multiple roles:
+
+### File layout
+
+```
+web_viewer.py        # HTTP server, routing, extraction pipeline (~660 lines)
+db.py                # Supabase client + DB operations (~110 lines)
+templates/           # HTML/CSS files loaded at server startup
+  base.css           # Shared styles
+  home.html          # Country grid
+  country.html       # City grid (filtered to one country)
+  city.html          # TikTok grid (filtered to one city)
+  detail.html        # Single TikTok detail view
+  add.html           # Extraction form (URL input + progress + save button)
+```
+
+### Routes
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/` | Home page — lists all countries with TikToks |
+| GET | `/country/<name>` | All cities within a country |
+| GET | `/city/<name>` | All TikToks within a city |
+| GET | `/tiktok/<id>` | Full detail view for one TikTok |
+| GET | `/add` | Extraction form |
+| GET | `/status` | JSON snapshot of pipeline state (polled by `/add`) |
+| POST | `/start` | Kick off extraction for a URL |
+| POST | `/save` | Persist the latest extraction to Supabase |
+
+### Templating
+
+Templates use a simple `{{PLACEHOLDER}}` substitution scheme. The server reads each template file once at startup, then on each request replaces placeholders like `{{BASE_CSS}}`, `{{DATA_JSON}}`, `{{CITY_NAME}}` with their values before writing the body. There's no Jinja or Flask — just `str.replace()`.
+
+**Why so simple?** This kept the dependency footprint small and made it easy to embed the entire UI in one Python file initially. Splitting templates into separate files (Stage 2 of refactoring) preserved this approach but gave us syntax highlighting and easier editing.
+
+---
+
+## Persistence (Supabase)
+
+The web UI stores saved TikToks in a single Postgres table on Supabase.
+
+### Schema
+
+```sql
+CREATE TABLE tiktoks (
+  id           text PRIMARY KEY,             -- e.g. "osaka-7612758606290619679"
+  url          text NOT NULL UNIQUE,         -- original TikTok URL
+  author       text,                         -- e.g. "@traveljapan"
+  city         text NOT NULL,                -- from video_summary.destination_city
+  country      text NOT NULL,                -- from video_summary.destination_country
+  status       text NOT NULL DEFAULT 'needs_review',
+  cover_path   text,                         -- thumbnail (not yet implemented)
+  data         jsonb NOT NULL,               -- full extraction blob
+  transcript   text DEFAULT '',
+  screen_text  text DEFAULT '',
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  reviewed_at  timestamptz                   -- set when status moves to 'reviewed'
+);
+```
+
+### ID generation
+
+IDs are deterministic, not random. They're built from the city name and the TikTok video ID:
+
+```python
+tiktok_id = f"{slug(city)}-{video_id_from_url}"
+# e.g. "osaka-7612758606290619679"
+```
+
+This makes saves **idempotent** — saving the same TikTok twice updates the existing row instead of creating a duplicate (via `upsert`).
+
+### Why no Row Level Security (RLS)?
+
+RLS is disabled because only the Python server (using the `service_role` key) ever talks to the database. There are no browser clients hitting Supabase directly. If a future phase adds multi-user support or browser-side reads, RLS should be enabled with appropriate policies.
+
+### Data flow on save
+
+1. User clicks "Save to Library" on `/add` after extraction succeeds
+2. Browser sends `POST /save` with the extraction JSON, transcript, screen text, and original URL
+3. Server calls `db_save_tiktok()` which:
+   - Pulls city/country from `video_summary`
+   - Builds the slug ID
+   - Upserts the row into Supabase
+4. Server responds with `{ok: true, id, city, country}`
+5. Browser auto-redirects to `/city/<city>` so the user sees the new entry
+
+---
+
 ## Real Example Output
 
 Input: A TikTok photo carousel of favorite photo spots in Kyoto (`@ktdiaries_`)
@@ -371,6 +463,7 @@ Input: A TikTok photo carousel of favorite photo spots in Kyoto (`@ktdiaries_`)
 | `assemblyai` | latest | Audio transcription (videos only) |
 | `playwright` | latest | Headless Chromium browser (carousels only) |
 | `python-dotenv` | latest | Load API keys from `.env` file |
+| `supabase` | latest | Cloud database client for the web UI library |
 
 ### External APIs
 
@@ -379,20 +472,22 @@ Input: A TikTok photo carousel of favorite photo spots in Kyoto (`@ktdiaries_`)
 | Google Gemini 2.5 Flash | OCR + place extraction | Both videos and carousels |
 | AssemblyAI | Audio transcription | Videos only |
 | TikTok oEmbed | Video captions | Videos only |
+| Supabase | Persistent storage of saved TikToks | Web UI "Save to Library" feature |
 
 ### Two Interfaces
 
 **CLI (`process_tiktok.py`):**
 - Run from terminal
 - Prints progress step-by-step
-- Saves output to `final-extraction.json`
+- Saves output to `final-extraction.json` (single file, overwritten each run)
 - Best for: testing, automation, batch processing
 
 **Web UI (`web_viewer.py`):**
 - Run locally at `http://localhost:5050`
-- Live progress logs stream to the browser
-- Results displayed in formatted cards with color-coded confidence
-- Best for: interactive use, visual review of results
+- Live progress logs stream to the browser during extraction
+- **Library mode** — saved TikToks browsable by Country → City → TikTok
+- **Save to Library** — persists results to Supabase after extraction
+- Best for: building a personal travel knowledge base over time
 
 ---
 
