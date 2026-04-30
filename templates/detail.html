@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TikTok Detail — TikTok Travel Saver</title>
+<style>
+{{BASE_CSS}}
+  /* Detail-page-specific (mirrors HTML_PAGE results section) */
+  .place-card { background: #111; border: 1px solid #222; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  .place-name { font-size: 16px; font-weight: 600; color: #fff; }
+  .place-type { font-size: 12px; color: #888; margin-left: 8px; }
+  .place-parent { font-size: 12px; color: #666; }
+  .place-detail { font-size: 13px; color: #aaa; margin-top: 6px; line-height: 1.5; }
+  .place-detail strong { color: #ccc; }
+  .evidence { display: flex; gap: 6px; margin-top: 8px; }
+  .ev { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .ev.on { background: #1a2e1a; color: #4cd964; }
+  .ev.off { background: #1a1a1a; color: #555; }
+
+  .note-item { padding: 8px 0; border-bottom: 1px solid #222; font-size: 13px; color: #aaa; }
+  .note-item:last-child { border-bottom: none; }
+  .note-type { color: #fe2c55; font-weight: 600; text-transform: uppercase; font-size: 11px; margin-right: 6px; }
+  .review-item { padding: 8px 0; border-bottom: 1px solid #222; font-size: 13px; }
+  .review-item:last-child { border-bottom: none; }
+  .review-issue { color: #f5a623; font-weight: 600; }
+  .review-reason { color: #888; }
+
+  .summary-text { color: #bbb; font-size: 14px; line-height: 1.6; }
+  .map-query { font-size: 12px; color: #666; font-family: monospace; margin-top: 4px; }
+  .raw-data-content { background: #111; border: 1px solid #222; border-radius: 8px; padding: 14px; margin-top: 8px; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 12px; line-height: 1.7; color: #aaa; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; }
+  .raw-data-empty { color: #555; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="{{BACK_HREF}}" class="back-link">← Back to {{CITY_NAME}}</a>
+  <div id="results"></div>
+</div>
+
+<script>
+const TIKTOK = {{DATA_JSON}};
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text == null ? '' : text;
+  return div.innerHTML;
+}
+
+function renderResults(r, transcript, screenText) {
+  const el = document.getElementById('results');
+  let html = '';
+
+  // Video summary
+  const s = r.video_summary || {};
+  html += `<div class="card">
+    <h2>${escapeHtml(s.main_topic) || 'Video Summary'}</h2>
+    <p class="summary-text">${escapeHtml(s.summary) || ''}</p>
+    <div class="meta-row" style="margin-top:10px">
+      <span class="tag">${escapeHtml(s.destination_city) || '?'}, ${escapeHtml(s.destination_country) || '?'}</span>
+      <span class="tag ${s.usefulness_for_itinerary || ''}">${escapeHtml(s.usefulness_for_itinerary) || '?'} usefulness</span>
+      ${(s.overall_vibe || []).map(v => `<span class="tag vibe">${escapeHtml(v)}</span>`).join('')}
+    </div>
+  </div>`;
+
+  // Raw data: Transcript + Screen Text
+  html += `<div class="card">
+    <h2>🔍 Raw Extracted Data</h2>
+    <h3>Audio Transcript</h3>
+    ${transcript ? `<div class="raw-data-content">${escapeHtml(transcript)}</div>` : '<div class="raw-data-empty">No spoken transcript detected (music-only video)</div>'}
+    <h3 style="margin-top:16px">On-Screen Text (Gemini Vision)</h3>
+    ${screenText ? `<div class="raw-data-content">${escapeHtml(screenText)}</div>` : '<div class="raw-data-empty">No on-screen text detected</div>'}
+  </div>`;
+
+  // Places
+  const places = r.places || [];
+  html += `<div class="card"><h2>📍 Places (${places.length})</h2>`;
+  for (const p of places) {
+    const parentTxt = p.parent_place ? `<span class="place-parent">inside ${escapeHtml(p.parent_place)}</span>` : '';
+    const confClass = p.confidence || 'medium';
+    html += `<div class="place-card">
+      <div>
+        <span class="place-name">${escapeHtml(p.name) || '(unnamed)'}</span>
+        <span class="place-type">${escapeHtml(p.place_type) || ''}</span>
+        ${parentTxt}
+        <span class="tag ${confClass}" style="margin-left:8px;font-size:11px">${escapeHtml(p.confidence)}</span>
+      </div>`;
+
+    if (p.creator_notes && p.creator_notes.length) {
+      html += `<div class="place-detail">${p.creator_notes.map(n => `• ${escapeHtml(n)}`).join('<br>')}</div>`;
+    }
+    if (p.mentioned_foods_or_items && p.mentioned_foods_or_items.length) {
+      html += `<div class="place-detail"><strong>Food/items:</strong> ${p.mentioned_foods_or_items.map(escapeHtml).join(', ')}</div>`;
+    }
+    if (p.warnings_or_requirements && p.warnings_or_requirements.length) {
+      html += `<div class="place-detail" style="color:#f5a623"><strong>⚠️</strong> ${p.warnings_or_requirements.map(escapeHtml).join('; ')}</div>`;
+    }
+    if (p.best_for && p.best_for.length) {
+      html += `<div class="meta-row" style="margin-top:8px">${p.best_for.map(b => `<span class="tag">${escapeHtml(b)}</span>`).join('')}</div>`;
+    }
+
+    const se = p.source_evidence || {};
+    html += `<div class="evidence">
+      <span class="ev ${se.caption ? 'on' : 'off'}">caption</span>
+      <span class="ev ${se.transcript ? 'on' : 'off'}">transcript</span>
+      <span class="ev ${se.ocr ? 'on' : 'off'}">ocr</span>
+    </div>`;
+    html += `<div class="map-query">🔍 ${escapeHtml(p.map_search_query) || ''}</div>`;
+    html += `</div>`;
+  }
+  html += `</div>`;
+
+  // Non-place notes
+  const notes = r.non_place_notes || [];
+  if (notes.length) {
+    html += `<div class="card"><h2>📝 Notes (${notes.length})</h2>`;
+    for (const n of notes) {
+      const related = n.related_place ? ` → <em>${escapeHtml(n.related_place)}</em>` : '';
+      html += `<div class="note-item"><span class="note-type">${escapeHtml(n.type) || '?'}</span>${escapeHtml(n.text) || ''}${related}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // Needs review
+  const reviews = r.needs_user_review || [];
+  if (reviews.length) {
+    html += `<div class="card"><h2>⚠️ Needs Review (${reviews.length})</h2>`;
+    for (const rv of reviews) {
+      html += `<div class="review-item"><span class="review-issue">${escapeHtml(rv.issue) || '?'}</span><br><span class="review-reason">${escapeHtml(rv.reason) || ''}</span></div>`;
+    }
+    html += `</div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+renderResults(TIKTOK, TIKTOK.transcript || '', TIKTOK.screen_text || '');
+</script>
+</body>
+</html>

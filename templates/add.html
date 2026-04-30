@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TikTok Travel Saver</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
+  .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 28px; margin-bottom: 4px; color: #fff; }
+  .subtitle { color: #888; margin-bottom: 24px; font-size: 14px; }
+
+  /* Input */
+  .input-row { display: flex; gap: 10px; margin-bottom: 24px; }
+  input[type=text] { flex: 1; padding: 12px 16px; border-radius: 10px; border: 1px solid #333; background: #1a1a1a; color: #fff; font-size: 15px; outline: none; }
+  input[type=text]:focus { border-color: #fe2c55; }
+  button { padding: 12px 24px; border-radius: 10px; border: none; background: #fe2c55; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  button:hover { background: #e0274d; }
+  button:disabled { background: #444; cursor: not-allowed; }
+
+  /* Progress bar */
+  .progress-container { margin-bottom: 20px; display: none; }
+  .progress-bar { height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #fe2c55, #ff6b81); border-radius: 3px; transition: width 0.4s ease; width: 0%; }
+  .step-label { font-size: 13px; color: #888; margin-top: 6px; }
+
+  /* Log */
+  .log-box { background: #1a1a1a; border: 1px solid #282828; border-radius: 10px; padding: 16px; margin-bottom: 24px; max-height: 300px; overflow-y: auto; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 13px; line-height: 1.7; display: none; }
+  .log-line { color: #aaa; }
+  .log-line.step { color: #fe2c55; font-weight: 600; margin-top: 8px; }
+  .log-line.warn { color: #f5a623; }
+  .log-line.error { color: #ff4444; }
+  .log-line.done { color: #4cd964; font-weight: 600; }
+
+  /* Results */
+  .results { display: none; }
+  .card { background: #1a1a1a; border: 1px solid #282828; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .card h2 { font-size: 18px; color: #fff; margin-bottom: 12px; }
+  .card h3 { font-size: 15px; color: #fe2c55; margin: 14px 0 8px; }
+  .meta-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .tag { background: #282828; color: #ccc; padding: 4px 10px; border-radius: 20px; font-size: 12px; }
+  .tag.vibe { background: #2a1a2e; color: #d4a0e0; }
+  .tag.high { background: #1a2e1a; color: #4cd964; }
+  .tag.medium { background: #2e2a1a; color: #f5a623; }
+  .tag.low { background: #2e1a1a; color: #ff6b6b; }
+
+  .place-card { background: #111; border: 1px solid #222; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  .place-name { font-size: 16px; font-weight: 600; color: #fff; }
+  .place-type { font-size: 12px; color: #888; margin-left: 8px; }
+  .place-parent { font-size: 12px; color: #666; }
+  .place-detail { font-size: 13px; color: #aaa; margin-top: 6px; line-height: 1.5; }
+  .place-detail strong { color: #ccc; }
+  .evidence { display: flex; gap: 6px; margin-top: 8px; }
+  .ev { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .ev.on { background: #1a2e1a; color: #4cd964; }
+  .ev.off { background: #1a1a1a; color: #555; }
+
+  .note-item { padding: 8px 0; border-bottom: 1px solid #222; font-size: 13px; color: #aaa; }
+  .note-item:last-child { border-bottom: none; }
+  .note-type { color: #fe2c55; font-weight: 600; text-transform: uppercase; font-size: 11px; margin-right: 6px; }
+  .review-item { padding: 8px 0; border-bottom: 1px solid #222; font-size: 13px; }
+  .review-item:last-child { border-bottom: none; }
+  .review-issue { color: #f5a623; font-weight: 600; }
+  .review-reason { color: #888; }
+
+  .summary-text { color: #bbb; font-size: 14px; line-height: 1.6; }
+  .map-query { font-size: 12px; color: #666; font-family: monospace; margin-top: 4px; }
+
+  /* Raw data sections */
+  .raw-data-toggle { cursor: pointer; color: #fe2c55; font-size: 13px; font-weight: 600; margin-top: 8px; display: inline-block; }
+  .raw-data-toggle:hover { text-decoration: underline; }
+  .raw-data-content { background: #111; border: 1px solid #222; border-radius: 8px; padding: 14px; margin-top: 8px; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 12px; line-height: 1.7; color: #aaa; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; }
+  .raw-data-empty { color: #555; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🗺️ TikTok Travel Saver</h1>
+  <p class="subtitle">Paste a TikTok URL to extract places and travel info</p>
+
+  <div class="input-row">
+    <input type="text" id="urlInput" placeholder="https://www.tiktok.com/@user/video/123..." />
+    <button id="goBtn" onclick="startPipeline()">Extract Places</button>
+  </div>
+
+  <div class="progress-container" id="progressContainer">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="step-label" id="stepLabel">Starting...</div>
+  </div>
+
+  <div class="log-box" id="logBox"></div>
+
+  <div class="results" id="results"></div>
+
+  <div id="saveBar" style="display:none;position:sticky;bottom:0;background:#1e1e2e;border-top:1px solid #333;padding:16px 24px;align-items:center;gap:16px;z-index:100;">
+    <span style="color:#aaa;font-size:14px;">Extraction complete — save this to your travel library?</span>
+    <button id="saveBtn" onclick="saveToLibrary()" style="background:#7c3aed;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">Save to Library</button>
+    <a href="/" style="color:#aaa;font-size:13px;text-decoration:none;">← Browse library</a>
+  </div>
+</div>
+
+<script>
+const STEP_NAMES = {
+  1: "Fetching caption",
+  2: "Downloading video",
+  3: "Transcribing audio",
+  4: "Extracting video frames",
+  5: "Reading on-screen text (Gemini Vision)",
+  6: "Combining sources",
+  7: "Extracting places with AI",
+  8: "Done"
+};
+
+let pollTimer = null;
+let lastLogCount = 0;
+let _currentUrl = '';
+let _lastResult = null;
+let _lastTranscript = '';
+let _lastScreenText = '';
+
+function startPipeline() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return alert('Please paste a TikTok URL');
+  _currentUrl = url;
+  _lastResult = null;
+
+  document.getElementById('goBtn').disabled = true;
+  document.getElementById('progressContainer').style.display = 'block';
+  document.getElementById('logBox').style.display = 'block';
+  document.getElementById('logBox').innerHTML = '';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('results').innerHTML = '';
+  const sb = document.getElementById('saveBar');
+  if (sb) sb.style.display = 'none';
+  lastLogCount = 0;
+
+  fetch('/start', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({url}) });
+  pollTimer = setInterval(pollStatus, 800);
+}
+
+function pollStatus() {
+  fetch('/status').then(r => r.json()).then(data => {
+    // Progress bar
+    const pct = Math.round((data.current_step / data.total_steps) * 100);
+    document.getElementById('progressFill').style.width = pct + '%';
+    const stepName = STEP_NAMES[data.current_step] || '';
+    document.getElementById('stepLabel').textContent = `Step ${data.current_step}/${data.total_steps}: ${stepName}`;
+
+    // Logs
+    const logBox = document.getElementById('logBox');
+    for (let i = lastLogCount; i < data.logs.length; i++) {
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      const msg = data.logs[i];
+      if (msg.startsWith('⚠️') || msg.startsWith('⚠')) line.className += ' warn';
+      else if (msg.startsWith('❌')) line.className += ' error';
+      else if (msg === 'Done!') line.className += ' done';
+      else if (msg.match(/^(Fetching|Downloading|Transcribing|Extracting|Reading|Combining|Sending)/)) line.className += ' step';
+      line.textContent = msg;
+      logBox.appendChild(line);
+    }
+    lastLogCount = data.logs.length;
+    logBox.scrollTop = logBox.scrollHeight;
+
+    // Done
+    if (!data.running) {
+      clearInterval(pollTimer);
+      document.getElementById('goBtn').disabled = false;
+      if (data.result) {
+        _lastResult = data.result;
+        _lastTranscript = data.transcript || '';
+        _lastScreenText = data.screen_text || '';
+        renderResults(data.result, data.transcript, data.screen_text);
+        const sb = document.getElementById('saveBar');
+        if (sb) sb.style.display = 'flex';
+      }
+      if (data.error) {
+        document.getElementById('stepLabel').textContent = 'Pipeline failed — see logs above';
+      }
+    }
+  });
+}
+
+function saveToLibrary() {
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  fetch('/save', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({url: _currentUrl, result: _lastResult, transcript: _lastTranscript, screen_text: _lastScreenText})
+  }).then(r => r.json()).then(data => {
+    if (data.ok) {
+      btn.textContent = 'Saved ✓';
+      btn.style.background = '#2ecc71';
+      const city = data.city || '';
+      const country = data.country || '';
+      if (city) {
+        setTimeout(() => {
+          window.location.href = '/city/' + encodeURIComponent(city);
+        }, 1200);
+      }
+    } else {
+      btn.textContent = 'Error — check console';
+      btn.style.background = '#e74c3c';
+      btn.disabled = false;
+      console.error('Save error:', data.error);
+    }
+  }).catch(err => {
+    btn.textContent = 'Error — check console';
+    btn.style.background = '#e74c3c';
+    btn.disabled = false;
+    console.error(err);
+  });
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function renderResults(r, transcript, screenText) {
+  const el = document.getElementById('results');
+  el.style.display = 'block';
+  let html = '';
+
+  // Video summary
+  const s = r.video_summary || {};
+  html += `<div class="card">
+    <h2>${s.main_topic || 'Video Summary'}</h2>
+    <p class="summary-text">${s.summary || ''}</p>
+    <div class="meta-row" style="margin-top:10px">
+      <span class="tag">${s.destination_city || '?'}, ${s.destination_country || '?'}</span>
+      <span class="tag ${s.usefulness_for_itinerary}">${s.usefulness_for_itinerary || '?'} usefulness</span>
+      ${(s.overall_vibe || []).map(v => `<span class="tag vibe">${v}</span>`).join('')}
+    </div>
+  </div>`;
+
+  // Raw data: Transcript + Screen Text
+  html += `<div class="card">
+    <h2>🔍 Raw Extracted Data</h2>
+    <h3>Audio Transcript</h3>
+    ${transcript ? `<div class="raw-data-content">${escapeHtml(transcript)}</div>` : '<div class="raw-data-empty">No spoken transcript detected (music-only video)</div>'}
+    <h3 style="margin-top:16px">On-Screen Text (Gemini Vision)</h3>
+    ${screenText ? `<div class="raw-data-content">${escapeHtml(screenText)}</div>` : '<div class="raw-data-empty">No on-screen text detected</div>'}
+  </div>`;
+
+  // Places
+  const places = r.places || [];
+  html += `<div class="card"><h2>📍 Places (${places.length})</h2>`;
+  for (const p of places) {
+    const parentTxt = p.parent_place ? `<span class="place-parent">inside ${p.parent_place}</span>` : '';
+    const confClass = p.confidence || 'medium';
+    html += `<div class="place-card">
+      <div>
+        <span class="place-name">${p.name}</span>
+        <span class="place-type">${p.place_type || ''}</span>
+        ${parentTxt}
+        <span class="tag ${confClass}" style="margin-left:8px;font-size:11px">${p.confidence}</span>
+      </div>`;
+
+    if (p.creator_notes && p.creator_notes.length) {
+      html += `<div class="place-detail">${p.creator_notes.map(n => `• ${n}`).join('<br>')}</div>`;
+    }
+    if (p.mentioned_foods_or_items && p.mentioned_foods_or_items.length) {
+      html += `<div class="place-detail"><strong>Food/items:</strong> ${p.mentioned_foods_or_items.join(', ')}</div>`;
+    }
+    if (p.warnings_or_requirements && p.warnings_or_requirements.length) {
+      html += `<div class="place-detail" style="color:#f5a623"><strong>⚠️</strong> ${p.warnings_or_requirements.join('; ')}</div>`;
+    }
+    if (p.best_for && p.best_for.length) {
+      html += `<div class="meta-row" style="margin-top:8px">${p.best_for.map(b => `<span class="tag">${b}</span>`).join('')}</div>`;
+    }
+
+    const se = p.source_evidence || {};
+    html += `<div class="evidence">
+      <span class="ev ${se.caption ? 'on' : 'off'}">caption</span>
+      <span class="ev ${se.transcript ? 'on' : 'off'}">transcript</span>
+      <span class="ev ${se.ocr ? 'on' : 'off'}">ocr</span>
+    </div>`;
+    html += `<div class="map-query">🔍 ${p.map_search_query || ''}</div>`;
+    html += `</div>`;
+  }
+  html += `</div>`;
+
+  // Non-place notes
+  const notes = r.non_place_notes || [];
+  if (notes.length) {
+    html += `<div class="card"><h2>📝 Notes (${notes.length})</h2>`;
+    for (const n of notes) {
+      const related = n.related_place ? ` → <em>${n.related_place}</em>` : '';
+      html += `<div class="note-item"><span class="note-type">${n.type || '?'}</span>${n.text || ''}${related}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // Needs review
+  const reviews = r.needs_user_review || [];
+  if (reviews.length) {
+    html += `<div class="card"><h2>⚠️ Needs Review (${reviews.length})</h2>`;
+    for (const rv of reviews) {
+      html += `<div class="review-item"><span class="review-issue">${rv.issue || '?'}</span><br><span class="review-reason">${rv.reason || ''}</span></div>`;
+    }
+    html += `</div>`;
+  }
+
+  el.innerHTML = html;
+}
+</script>
+</body>
+</html>

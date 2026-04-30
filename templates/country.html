@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{COUNTRY_NAME}} — TikTok Travel Saver</title>
+<style>
+{{BASE_CSS}}
+  /* Country-page-specific */
+  .city-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .city-card { background: #1a1a1a; border: 1px solid #282828; border-radius: 12px; padding: 24px; cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease; display: block; }
+  .city-card:hover { transform: translateY(-2px); border-color: #fe2c55; }
+  .city-icon { font-size: 28px; margin-bottom: 12px; }
+  .city-name { font-size: 20px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+  .city-count { font-size: 13px; color: #fe2c55; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="/" class="back-link">← Back</a>
+  <header class="page-header">
+    <h1>{{COUNTRY_NAME}}</h1>
+  </header>
+
+  <div id="cityGrid" class="city-grid"></div>
+  <div id="emptyState" class="empty-state" style="display:none">No cities for this country yet.</div>
+</div>
+
+<script>
+const LIBRARY_DATA = {{DATA_JSON}};
+const COUNTRY_NAME = {{COUNTRY_NAME_JSON}};
+
+function renderCountry() {
+  const groups = {};
+  for (const t of LIBRARY_DATA.tiktoks) {
+    if (t.country !== COUNTRY_NAME) continue;
+    if (!groups[t.city]) groups[t.city] = { city: t.city, count: 0 };
+    groups[t.city].count++;
+  }
+  const cities = Object.values(groups);
+  const grid = document.getElementById('cityGrid');
+  const empty = document.getElementById('emptyState');
+  if (cities.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+  let html = '';
+  for (const c of cities) {
+    const url = '/city/' + encodeURIComponent(c.city);
+    const label = c.count === 1 ? '1 TikTok' : c.count + ' TikToks';
+    html += `<a href="${url}" class="city-card">
+      <div class="city-icon">📍</div>
+      <div class="city-name">${c.city}</div>
+      <div class="city-count">${label}</div>
+    </a>`;
+  }
+  grid.innerHTML = html;
+}
+renderCountry();
+</script>
+</body>
+</html>

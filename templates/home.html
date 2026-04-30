@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TikTok Travel Saver</title>
+<style>
+{{BASE_CSS}}
+  /* Home-page-specific */
+  .country-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .country-card { background: #1a1a1a; border: 1px solid #282828; border-radius: 12px; padding: 24px; cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease; display: block; }
+  .country-card:hover { transform: translateY(-2px); border-color: #fe2c55; }
+  .country-icon { font-size: 28px; margin-bottom: 12px; }
+  .country-name { font-size: 20px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+  .country-cities { font-size: 13px; color: #888; margin-bottom: 12px; }
+  .country-count { font-size: 13px; color: #fe2c55; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header class="page-header">
+    <h1>🗺️ TikTok Travel Saver</h1>
+    <a href="/add" class="btn-add" title="Add a new TikTok">+</a>
+  </header>
+
+  <div id="countryGrid" class="country-grid"></div>
+  <div id="emptyState" class="empty-state" style="display:none">No trips yet. Click + to add your first TikTok.</div>
+</div>
+
+<script>
+const LIBRARY_DATA = {{DATA_JSON}};
+
+// Group TikToks by country. Each group also tracks the unique cities inside.
+function renderHome() {
+  const groups = {};
+  for (const t of LIBRARY_DATA.tiktoks) {
+    if (!groups[t.country]) groups[t.country] = { country: t.country, cities: new Set(), count: 0 };
+    groups[t.country].cities.add(t.city);
+    groups[t.country].count++;
+  }
+  const countries = Object.values(groups);
+  const grid = document.getElementById('countryGrid');
+  const empty = document.getElementById('emptyState');
+  if (countries.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+  let html = '';
+  for (const c of countries) {
+    const url = '/country/' + encodeURIComponent(c.country);
+    const cityCount = c.cities.size;
+    const cityLabel = cityCount === 1 ? '1 city' : cityCount + ' cities';
+    const tiktokLabel = c.count === 1 ? '1 TikTok' : c.count + ' TikToks';
+    html += `<a href="${url}" class="country-card">
+      <div class="country-icon">🌏</div>
+      <div class="country-name">${c.country}</div>
+      <div class="country-cities">${cityLabel}</div>
+      <div class="country-count">${tiktokLabel}</div>
+    </a>`;
+  }
+  grid.innerHTML = html;
+}
+renderHome();
+</script>
+</body>
+</html>

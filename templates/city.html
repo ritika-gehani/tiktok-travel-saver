@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{CITY_NAME}} — TikTok Travel Saver</title>
+<style>
+{{BASE_CSS}}
+  /* City-page-specific */
+  .tiktok-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .tiktok-card { background: #1a1a1a; border: 1px solid #282828; border-radius: 12px; padding: 18px; cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease; display: block; }
+  .tiktok-card:hover { transform: translateY(-2px); border-color: #fe2c55; }
+  .tiktok-thumb { background: #111; border: 1px solid #222; border-radius: 8px; height: 140px; display: flex; align-items: center; justify-content: center; color: #444; font-size: 36px; margin-bottom: 12px; }
+  .tiktok-title { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 6px; line-height: 1.3; }
+  .tiktok-author { font-size: 12px; color: #888; margin-bottom: 10px; }
+  .tiktok-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tiktok-places { font-size: 12px; color: #aaa; }
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="{{BACK_HREF}}" class="back-link">← Back to {{BACK_LABEL}}</a>
+  <header class="page-header">
+    <h1>{{CITY_NAME}}</h1>
+  </header>
+
+  <div id="tiktokGrid" class="tiktok-grid"></div>
+  <div id="emptyState" class="empty-state" style="display:none">No TikToks for this city yet.</div>
+</div>
+
+<script>
+const LIBRARY_DATA = {{DATA_JSON}};
+const CITY_NAME = {{CITY_NAME_JSON}};
+
+function renderCity() {
+  const filtered = LIBRARY_DATA.tiktoks.filter(t => t.city === CITY_NAME);
+  const grid = document.getElementById('tiktokGrid');
+  const empty = document.getElementById('emptyState');
+  if (filtered.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+  let html = '';
+  for (const t of filtered) {
+    const title = (t.video_summary && t.video_summary.main_topic) || 'Untitled';
+    const author = t.author || '';
+    const placeCount = (t.places || []).length;
+    const placeLabel = placeCount === 1 ? '1 place' : placeCount + ' places';
+    const url = '/tiktok/' + encodeURIComponent(t.id);
+    const reviewBadge = t.status === 'needs_review' ? '<span class="tag review">Needs Review</span>' : '';
+    html += `<a href="${url}" class="tiktok-card">
+      <div class="tiktok-thumb">🎬</div>
+      <div class="tiktok-title">${title}</div>
+      <div class="tiktok-author">${author}</div>
+      <div class="tiktok-meta">
+        <span class="tiktok-places">${placeLabel}</span>
+        ${reviewBadge}
+      </div>
+    </a>`;
+  }
+  grid.innerHTML = html;
+}
+renderCity();
+</script>
+</body>
+</html>

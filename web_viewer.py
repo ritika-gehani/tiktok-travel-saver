@@ -24,11 +24,115 @@ import cv2
 from google import genai
 from google.genai import types
 from playwright.sync_api import sync_playwright
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+# Load .env before anything tries to read env vars
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+
+# ---------------------------------------------------------------------------
+# Supabase client
+# ---------------------------------------------------------------------------
+_SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+_SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+if not _SUPABASE_URL or not _SUPABASE_KEY:
+    print("⚠️  SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set in .env — DB features will fail.")
+    _supabase: Client | None = None
+else:
+    _supabase: Client = create_client(_SUPABASE_URL, _SUPABASE_KEY)
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROMPT_FILE = os.path.join(PROJECT_DIR, "prompt-extract-places.txt")
 TEMP_VIDEO = os.path.join(PROJECT_DIR, "temp-video.mp4")
 TEMP_AUDIO = os.path.join(PROJECT_DIR, "temp-audio.mp3")
+
+# ---------------------------------------------------------------------------
+# Supabase helper functions
+# ---------------------------------------------------------------------------
+
+def db_fetch_all() -> dict:
+    """Return {tiktoks: [...]} from Supabase, shaped for the HTML templates."""
+    if _supabase is None:
+        return {"tiktoks": []}
+    rows = (
+        _supabase.table("tiktoks")
+        .select("id,url,author,city,country,status,cover_path,data,transcript,screen_text,created_at,reviewed_at")
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
+    # Merge top-level columns back into the shape the HTML templates expect
+    tiktoks = []
+    for row in rows:
+        entry = row.get("data") or {}
+        entry["id"] = row["id"]
+        entry["url"] = row["url"]
+        entry["author"] = row.get("author", "")
+        entry["city"] = row["city"]
+        entry["country"] = row["country"]
+        entry["status"] = row["status"]
+        entry["cover_path"] = row.get("cover_path", "")
+        entry["transcript"] = row.get("transcript", "")
+        entry["screen_text"] = row.get("screen_text", "")
+        entry["created_at"] = row.get("created_at", "")
+        tiktoks.append(entry)
+    return {"tiktoks": tiktoks}
+
+
+def db_find_by_id(tiktok_id: str) -> dict | None:
+    """Fetch a single TikTok row by id and return it merged, or None."""
+    if _supabase is None:
+        return None
+    rows = (
+        _supabase.table("tiktoks")
+        .select("*")
+        .eq("id", tiktok_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not rows:
+        return None
+    row = rows[0]
+    entry = row.get("data") or {}
+    entry["id"] = row["id"]
+    entry["url"] = row["url"]
+    entry["author"] = row.get("author", "")
+    entry["city"] = row["city"]
+    entry["country"] = row["country"]
+    entry["status"] = row["status"]
+    entry["cover_path"] = row.get("cover_path", "")
+    entry["transcript"] = row.get("transcript", "")
+    entry["screen_text"] = row.get("screen_text", "")
+    entry["created_at"] = row.get("created_at", "")
+    return entry
+
+
+def db_save_tiktok(tiktok_url: str, extraction: dict, transcript: str, screen_text: str) -> dict:
+    """Insert (or upsert) a TikTok extraction into Supabase. Returns the saved row."""
+    if _supabase is None:
+        raise RuntimeError("Supabase client not initialised — check .env")
+    vs = extraction.get("video_summary") or {}
+    city = vs.get("destination_city") or "Unknown"
+    country = vs.get("destination_country") or "Unknown"
+    # Build a stable id from url (strip query params, use last path segment)
+    parsed = urlparse(tiktok_url)
+    video_id = parsed.path.rstrip("/").rsplit("/", 1)[-1] or "unknown"
+    slug_city = re.sub(r"[^a-z0-9]+", "-", city.lower()).strip("-")
+    tiktok_id = f"{slug_city}-{video_id}"
+    row = {
+        "id": tiktok_id,
+        "url": tiktok_url,
+        "city": city,
+        "country": country,
+        "status": "needs_review",
+        "data": extraction,
+        "transcript": transcript or "",
+        "screen_text": screen_text or "",
+    }
+    _supabase.table("tiktoks").upsert(row).execute()
+    return {**extraction, **row}
+
 
 # ---------------------------------------------------------------------------
 # Shared state for streaming progress to browser
@@ -43,440 +147,6 @@ pipeline_state = {
     "error": None,
     "transcript": "",
     "screen_text": "",
-}
-
-
-# ---------------------------------------------------------------------------
-# Phase 1: Hardcoded sample data for the new Home / City / Detail pages.
-# This is fake data baked into the file so we can see the new layout before
-# wiring up real persistence. The pipeline (run_pipeline) is unchanged — its
-# results still flow through pipeline_state and are shown only on /add.
-# ---------------------------------------------------------------------------
-
-FAKE_DATA = {
-    "tiktoks": [
-        {
-            "id": "kyoto-photo-spots",
-            "city": "Kyoto",
-            "country": "Japan",
-            "status": "needs_review",
-            "author": "@traveljapan",
-            "transcript": "",
-            "screen_text": "Kifune Shrine\n180 Kuramakibunecho, Sakyo Ward, Kyoto, 601-1112, Japan\n\u8cb4\u8239\u795e\u793e\n\nKurama Temple\n\u978d\u99ac\u5bfa\n\nShiragiko Inari\n\u767d\u72d0\u7a32\u8377\n6, Sagakamenoocho, Ukyo, Kyoto, Kyoto, Japan 616-8386",
-            "video_summary": {
-                "main_topic": "Favorite Photo Locations in Kyoto",
-                "destination_city": "Kyoto",
-                "destination_country": "Japan",
-                "overall_vibe": ["photography", "sightseeing", "travel inspiration", "casual exploring"],
-                "usefulness_for_itinerary": "high",
-                "summary": "This video showcases the creator's favorite photo locations in Kyoto, Japan, providing specific addresses for each spot."
-            },
-            "places": [
-                {
-                    "name": "Kifune Shrine",
-                    "place_type": "shrine",
-                    "city": "Kyoto",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "Kifune Shrine, Kyoto, Japan",
-                    "should_create_map_pin": True,
-                    "confidence": "high",
-                    "why_confidence": "Explicitly named in English and Japanese, with a full address provided.",
-                    "source_evidence": {"caption": False, "transcript": False, "ocr": True},
-                    "creator_notes": ["One of the creator's favorite photo locations"],
-                    "best_for": ["photography", "sightseeing", "nature"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": [],
-                    "raw_mentions": ["180 Kuramakibunecho, Sakyo Ward, Kyoto, 601-1112, Japan", "\u8cb4\u8239\u795e\u793e", "Kifune Shrine"]
-                },
-                {
-                    "name": "Kurama Temple",
-                    "place_type": "temple",
-                    "city": "Kyoto",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "Kurama Temple, Kyoto, Japan",
-                    "should_create_map_pin": True,
-                    "confidence": "high",
-                    "why_confidence": "Explicitly named in Japanese and English.",
-                    "source_evidence": {"caption": False, "transcript": False, "ocr": True},
-                    "creator_notes": ["One of the creator's favorite photo locations"],
-                    "best_for": ["photography", "sightseeing", "history"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": [],
-                    "raw_mentions": ["\u978d\u99ac\u5bfa", "Kurama Temple"]
-                },
-                {
-                    "name": "Shiragiko Inari",
-                    "place_type": "shrine",
-                    "city": "Kyoto",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "Shiragiko Inari, Kyoto, Japan",
-                    "should_create_map_pin": True,
-                    "confidence": "medium",
-                    "why_confidence": "Explicitly named, and an address in the same ward is provided.",
-                    "source_evidence": {"caption": False, "transcript": False, "ocr": True},
-                    "creator_notes": ["One of the creator's favorite photo locations"],
-                    "best_for": ["photography", "sightseeing"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": [],
-                    "raw_mentions": ["\u767d\u72d0\u7a32\u8377", "6, Sagakamenoocho, Ukyo, Kyoto, Kyoto, Japan 616-8386"]
-                },
-                {
-                    "name": "Kibune River",
-                    "place_type": "attraction",
-                    "city": "Kyoto",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "Kibune River, Kyoto, Japan",
-                    "should_create_map_pin": True,
-                    "confidence": "high",
-                    "why_confidence": "Explicitly named, often a scenic spot for photography near Kifune Shrine.",
-                    "source_evidence": {"caption": False, "transcript": False, "ocr": True},
-                    "creator_notes": ["One of the creator's favorite photo locations"],
-                    "best_for": ["photography", "nature", "scenery"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": [],
-                    "raw_mentions": ["\u8cb4\u8239\u5ddd"]
-                },
-                {
-                    "name": "Kurama Temple, West Gate",
-                    "place_type": "landmark",
-                    "city": "Kyoto",
-                    "country": "Japan",
-                    "parent_place": "Kurama Temple",
-                    "map_search_query": "Kurama Temple West Gate, Kyoto, Japan",
-                    "should_create_map_pin": True,
-                    "confidence": "high",
-                    "why_confidence": "Explicitly named in Japanese and English, specified as part of Kurama Temple.",
-                    "source_evidence": {"caption": False, "transcript": False, "ocr": True},
-                    "creator_notes": ["One of the creator's favorite photo locations"],
-                    "best_for": ["photography", "sightseeing"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": [],
-                    "raw_mentions": ["\u978d\u99ac\u5bfa\u897f\u9580", "Kurama Temple, West Gate"]
-                },
-                {
-                    "name": "Shogaku-ji Temple",
-                    "place_type": "temple",
-                    "city": "Kyoto",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "Shogaku-ji Temple, Sagatenryujitateishicho, Ukyo, Kyoto, Kyoto, Japan",
-                    "should_create_map_pin": True,
-                    "confidence": "high",
-                    "why_confidence": "Explicitly named with a full address string.",
-                    "source_evidence": {"caption": False, "transcript": False, "ocr": True},
-                    "creator_notes": ["One of the creator's favorite photo locations"],
-                    "best_for": ["photography", "sightseeing", "history"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": [],
-                    "raw_mentions": ["Shogaku-ji Temple, Sagatenryujitateishicho, Ukyo, Kyoto, Kyoto, Japan"]
-                },
-                {
-                    "name": None,
-                    "place_type": "unknown",
-                    "city": "Kyoto",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "1, Saganonomiyacho, Ukyo, Kyoto, Kyoto, Japan 616-8393",
-                    "should_create_map_pin": True,
-                    "confidence": "low",
-                    "why_confidence": "Specific address provided as a photo location, but no explicit name given.",
-                    "source_evidence": {"caption": False, "transcript": False, "ocr": True},
-                    "creator_notes": ["One of the creator's favorite photo locations"],
-                    "best_for": ["photography"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": [],
-                    "raw_mentions": ["1, Saganonomiyacho, Ukyo, Kyoto, Kyoto, Japan 616-8393"]
-                },
-                {
-                    "name": None,
-                    "place_type": "unknown",
-                    "city": "Uji",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "95-9, Oguracho Kasugamori, Uji, Kyoto, Japan 611-0042",
-                    "should_create_map_pin": True,
-                    "confidence": "low",
-                    "why_confidence": "Specific address provided as a photo location, but no explicit name given.",
-                    "source_evidence": {"caption": False, "transcript": False, "ocr": True},
-                    "creator_notes": ["One of the creator's favorite photo locations"],
-                    "best_for": ["photography"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": [],
-                    "raw_mentions": ["95-9, Oguracho Kasugamori, Uji, Kyoto, Japan 611-0042"]
-                },
-                {
-                    "name": None,
-                    "place_type": "unknown",
-                    "city": "Kyoto",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "1, Giommachiminamigawa, Higashiyama, Kyoto, Kyoto, Japan 605-0074",
-                    "should_create_map_pin": True,
-                    "confidence": "low",
-                    "why_confidence": "Specific address provided as a photo location, but no explicit name given.",
-                    "source_evidence": {"caption": False, "transcript": False, "ocr": True},
-                    "creator_notes": ["One of the creator's favorite photo locations"],
-                    "best_for": ["photography"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": [],
-                    "raw_mentions": ["1, Giommachiminamigawa, Higashiyama, Kyoto, Kyoto, Japan 605-0074"]
-                },
-                {
-                    "name": None,
-                    "place_type": "unknown",
-                    "city": "Miyazu",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "30, Monju, Miyazu, Kyoto, Japan 626-0001",
-                    "should_create_map_pin": True,
-                    "confidence": "low",
-                    "why_confidence": "Specific address provided as a photo location, but no explicit name given.",
-                    "source_evidence": {"caption": False, "transcript": False, "ocr": True},
-                    "creator_notes": ["One of the creator's favorite photo locations"],
-                    "best_for": ["photography"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": [],
-                    "raw_mentions": ["30, Monju, Miyazu, Kyoto, Japan 626-0001"]
-                }
-            ],
-            "non_place_notes": [
-                {"type": "vibe", "text": "Mentions 'childbirth/safe delivery,' a common prayer theme at Japanese shrines.", "related_place": None},
-                {"type": "activity", "text": "Mentions 'omamori' (amulets), suggesting these are noteworthy at the photo locations.", "related_place": None}
-            ],
-            "needs_user_review": [
-                {"issue": "Specific place name for address '1, Saganonomiyacho, Ukyo, Kyoto, Kyoto, Japan 616-8393'", "reason": "The video provides an address as a 'fav photo location' but does not explicitly name the place."},
-                {"issue": "Specific place name for address '95-9, Oguracho Kasugamori, Uji, Kyoto, Japan 611-0042'", "reason": "The video provides an address as a 'fav photo location' but does not explicitly name the place."},
-                {"issue": "Specific place name for address '1, Giommachiminamigawa, Higashiyama, Kyoto, Kyoto, Japan 605-0074'", "reason": "The video provides an address as a 'fav photo location' but does not explicitly name the place."},
-                {"issue": "Specific place name for address '30, Monju, Miyazu, Kyoto, Japan 626-0001'", "reason": "The video provides an address as a 'fav photo location' but does not explicitly name the place."}
-            ]
-        },
-        {
-            "id": "kyoto-food-tour",
-            "city": "Kyoto",
-            "country": "Japan",
-            "status": "needs_review",
-            "author": "@foodieinkyoto",
-            "transcript": "Today we're trying the best matcha and street food in Kyoto. First stop, Nishiki Market for fresh tofu donuts.",
-            "screen_text": "Nishiki Market\n\u9326\u5e02\u5834\n\nIppodo Tea\n\u4e00\u4fdd\u5802\u8336\u8217\n\nMalebranche Kitayama",
-            "video_summary": {
-                "main_topic": "Best Food Stops in Kyoto",
-                "destination_city": "Kyoto",
-                "destination_country": "Japan",
-                "overall_vibe": ["food", "casual exploring", "local culture"],
-                "usefulness_for_itinerary": "high",
-                "summary": "A quick tour of three favorite food stops in Kyoto: a market, a tea house, and a matcha pastry shop."
-            },
-            "places": [
-                {
-                    "name": "Nishiki Market",
-                    "place_type": "market",
-                    "city": "Kyoto",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "Nishiki Market, Kyoto, Japan",
-                    "should_create_map_pin": True,
-                    "confidence": "high",
-                    "why_confidence": "Explicitly named in transcript and on-screen text.",
-                    "source_evidence": {"caption": False, "transcript": True, "ocr": True},
-                    "creator_notes": ["Best place for fresh tofu donuts"],
-                    "best_for": ["food", "snacks", "local culture"],
-                    "warnings_or_requirements": ["Gets crowded after 11am"],
-                    "mentioned_foods_or_items": ["tofu donuts", "pickles", "yuba"],
-                    "raw_mentions": ["Nishiki Market", "\u9326\u5e02\u5834"]
-                },
-                {
-                    "name": "Ippodo Tea",
-                    "place_type": "shop",
-                    "city": "Kyoto",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "Ippodo Tea Kyoto",
-                    "should_create_map_pin": True,
-                    "confidence": "high",
-                    "why_confidence": "Explicitly named.",
-                    "source_evidence": {"caption": False, "transcript": True, "ocr": True},
-                    "creator_notes": ["Beautiful old tea house, sit-down tasting room upstairs"],
-                    "best_for": ["tea", "souvenirs"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": ["matcha", "gyokuro"],
-                    "raw_mentions": ["Ippodo Tea", "\u4e00\u4fdd\u5802\u8336\u8217"]
-                },
-                {
-                    "name": "Malebranche Kitayama",
-                    "place_type": "shop",
-                    "city": "Kyoto",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "Malebranche Kitayama, Kyoto",
-                    "should_create_map_pin": True,
-                    "confidence": "medium",
-                    "why_confidence": "Explicitly named on-screen, but creator did not give detailed notes.",
-                    "source_evidence": {"caption": False, "transcript": False, "ocr": True},
-                    "creator_notes": ["Famous for cha-no-ka matcha cookies"],
-                    "best_for": ["dessert", "souvenirs"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": ["matcha cookies", "cha-no-ka"],
-                    "raw_mentions": ["Malebranche Kitayama"]
-                }
-            ],
-            "non_place_notes": [
-                {"type": "tip", "text": "Go early to beat the lunch rush at Nishiki Market.", "related_place": "Nishiki Market"}
-            ],
-            "needs_user_review": [
-                {"issue": "Confirm Malebranche Kitayama branch", "reason": "Creator showed the Kitayama branch but Malebranche has multiple locations in Kyoto."}
-            ]
-        },
-        {
-            "id": "osaka-street-food",
-            "city": "Osaka",
-            "country": "Japan",
-            "status": "needs_review",
-            "author": "@osakaeats",
-            "transcript": "Welcome to Dotonbori, the heart of Osaka street food. We're hitting Kukuru for takoyaki and then Ichiran for late-night ramen.",
-            "screen_text": "Dotonbori\n\u9053\u9813\u5800\n\nKukuru\n\nIchiran Ramen",
-            "video_summary": {
-                "main_topic": "Osaka Street Food Crawl",
-                "destination_city": "Osaka",
-                "destination_country": "Japan",
-                "overall_vibe": ["food", "nightlife", "casual exploring"],
-                "usefulness_for_itinerary": "high",
-                "summary": "A short crawl through Osaka's Dotonbori district covering takoyaki and late-night ramen."
-            },
-            "places": [
-                {
-                    "name": "Dotonbori",
-                    "place_type": "neighborhood",
-                    "city": "Osaka",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "Dotonbori, Osaka, Japan",
-                    "should_create_map_pin": True,
-                    "confidence": "high",
-                    "why_confidence": "Explicitly named in transcript and on-screen text.",
-                    "source_evidence": {"caption": False, "transcript": True, "ocr": True},
-                    "creator_notes": ["Heart of Osaka street food"],
-                    "best_for": ["food", "nightlife", "atmosphere"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": ["takoyaki", "okonomiyaki"],
-                    "raw_mentions": ["Dotonbori", "\u9053\u9813\u5800"]
-                },
-                {
-                    "name": "Kukuru",
-                    "place_type": "restaurant",
-                    "city": "Osaka",
-                    "country": "Japan",
-                    "parent_place": "Dotonbori",
-                    "map_search_query": "Kukuru takoyaki Dotonbori, Osaka",
-                    "should_create_map_pin": True,
-                    "confidence": "high",
-                    "why_confidence": "Explicitly named.",
-                    "source_evidence": {"caption": False, "transcript": True, "ocr": True},
-                    "creator_notes": ["Famous for takoyaki with extra-creamy filling"],
-                    "best_for": ["snacks", "food"],
-                    "warnings_or_requirements": ["Long line during dinner"],
-                    "mentioned_foods_or_items": ["takoyaki"],
-                    "raw_mentions": ["Kukuru"]
-                },
-                {
-                    "name": "Ichiran Ramen",
-                    "place_type": "restaurant",
-                    "city": "Osaka",
-                    "country": "Japan",
-                    "parent_place": None,
-                    "map_search_query": "Ichiran Ramen Dotonbori, Osaka",
-                    "should_create_map_pin": True,
-                    "confidence": "high",
-                    "why_confidence": "Explicitly named for late-night ramen.",
-                    "source_evidence": {"caption": False, "transcript": True, "ocr": True},
-                    "creator_notes": ["Open late, solo-style ramen booths"],
-                    "best_for": ["food", "late night"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": ["tonkotsu ramen"],
-                    "raw_mentions": ["Ichiran Ramen"]
-                }
-            ],
-            "non_place_notes": [],
-            "needs_user_review": []
-        },
-        {
-            "id": "rome-must-see",
-            "city": "Rome",
-            "country": "Italy",
-            "status": "needs_review",
-            "author": "@romewithme",
-            "transcript": "Three places you cannot skip in Rome. Number one, the Colosseum. Number two, Trastevere for dinner. Number three, an early morning walk around the Pantheon.",
-            "screen_text": "Colosseum\nTrastevere\nPantheon",
-            "video_summary": {
-                "main_topic": "3 Must-See Spots in Rome",
-                "destination_city": "Rome",
-                "destination_country": "Italy",
-                "overall_vibe": ["sightseeing", "history", "food"],
-                "usefulness_for_itinerary": "high",
-                "summary": "Quick top-3 list of essentials in Rome: an iconic landmark, a neighborhood for dinner, and a sunrise walk."
-            },
-            "places": [
-                {
-                    "name": "Colosseum",
-                    "place_type": "landmark",
-                    "city": "Rome",
-                    "country": "Italy",
-                    "parent_place": None,
-                    "map_search_query": "Colosseum, Rome, Italy",
-                    "should_create_map_pin": True,
-                    "confidence": "high",
-                    "why_confidence": "Explicitly named.",
-                    "source_evidence": {"caption": False, "transcript": True, "ocr": True},
-                    "creator_notes": ["Book skip-the-line tickets in advance"],
-                    "best_for": ["sightseeing", "history", "photography"],
-                    "warnings_or_requirements": ["Buy tickets ahead of time"],
-                    "mentioned_foods_or_items": [],
-                    "raw_mentions": ["Colosseum"]
-                },
-                {
-                    "name": "Trastevere",
-                    "place_type": "neighborhood",
-                    "city": "Rome",
-                    "country": "Italy",
-                    "parent_place": None,
-                    "map_search_query": "Trastevere, Rome, Italy",
-                    "should_create_map_pin": True,
-                    "confidence": "high",
-                    "why_confidence": "Explicitly named as a dinner destination.",
-                    "source_evidence": {"caption": False, "transcript": True, "ocr": True},
-                    "creator_notes": ["Best neighborhood for dinner; cobblestone streets and trattorias"],
-                    "best_for": ["food", "nightlife", "atmosphere"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": ["cacio e pepe", "carbonara"],
-                    "raw_mentions": ["Trastevere"]
-                },
-                {
-                    "name": "Pantheon",
-                    "place_type": "landmark",
-                    "city": "Rome",
-                    "country": "Italy",
-                    "parent_place": None,
-                    "map_search_query": "Pantheon, Rome, Italy",
-                    "should_create_map_pin": True,
-                    "confidence": "high",
-                    "why_confidence": "Explicitly named.",
-                    "source_evidence": {"caption": False, "transcript": True, "ocr": True},
-                    "creator_notes": ["Go early in the morning to avoid crowds"],
-                    "best_for": ["sightseeing", "history", "photography"],
-                    "warnings_or_requirements": [],
-                    "mentioned_foods_or_items": [],
-                    "raw_mentions": ["Pantheon"]
-                }
-            ],
-            "non_place_notes": [],
-            "needs_user_review": [
-                {"issue": "Specific Trastevere restaurant", "reason": "Creator recommends Trastevere for dinner but does not name a specific restaurant."}
-            ]
-        }
-    ]
 }
 
 
@@ -886,654 +556,22 @@ Return only the extracted text, nothing else."""))
 # HTML pages
 # ---------------------------------------------------------------------------
 
-# Shared dark-mode styles used by the Home, City, and Detail pages. Inlined into
-# each page's <style> via a {{BASE_CSS}} placeholder filled in by the server.
-BASE_CSS = """
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
-  a { color: inherit; text-decoration: none; }
-  .container { max-width: 900px; margin: 0 auto; padding: 24px; }
-
-  /* Page header (title row) */
-  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-  .page-header h1 { font-size: 28px; color: #fff; }
-  .subtitle { color: #888; margin-bottom: 24px; font-size: 14px; }
-
-  /* Back link */
-  .back-link { display: inline-block; color: #fe2c55; font-size: 14px; margin-bottom: 16px; }
-  .back-link:hover { text-decoration: underline; }
-
-  /* "+" Add button (in header) */
-  .btn-add { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: #fe2c55; color: #fff; font-size: 24px; font-weight: 600; line-height: 1; }
-  .btn-add:hover { background: #e0274d; }
-
-  /* Cards (shared) */
-  .card { background: #1a1a1a; border: 1px solid #282828; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
-  .card h2 { font-size: 18px; color: #fff; margin-bottom: 12px; }
-  .card h3 { font-size: 15px; color: #fe2c55; margin: 14px 0 8px; }
-
-  /* Tags */
-  .meta-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
-  .tag { background: #282828; color: #ccc; padding: 4px 10px; border-radius: 20px; font-size: 12px; }
-  .tag.vibe { background: #2a1a2e; color: #d4a0e0; }
-  .tag.high { background: #1a2e1a; color: #4cd964; }
-  .tag.medium { background: #2e2a1a; color: #f5a623; }
-  .tag.low { background: #2e1a1a; color: #ff6b6b; }
-  .tag.review { background: #2e1a1a; color: #ff6b6b; font-weight: 600; }
-
-  /* Empty state */
-  .empty-state { text-align: center; padding: 80px 20px; color: #666; font-size: 16px; }
-"""
-
-# Home page — list of country cards. Empty state if no TikToks exist.
-HTML_HOME = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TikTok Travel Saver</title>
-<style>
-{{BASE_CSS}}
-  /* Home-page-specific */
-  .country-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-  .country-card { background: #1a1a1a; border: 1px solid #282828; border-radius: 12px; padding: 24px; cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease; display: block; }
-  .country-card:hover { transform: translateY(-2px); border-color: #fe2c55; }
-  .country-icon { font-size: 28px; margin-bottom: 12px; }
-  .country-name { font-size: 20px; font-weight: 600; color: #fff; margin-bottom: 4px; }
-  .country-cities { font-size: 13px; color: #888; margin-bottom: 12px; }
-  .country-count { font-size: 13px; color: #fe2c55; font-weight: 600; }
-</style>
-</head>
-<body>
-<div class="container">
-  <header class="page-header">
-    <h1>🗺️ TikTok Travel Saver</h1>
-    <a href="/add" class="btn-add" title="Add a new TikTok">+</a>
-  </header>
-
-  <div id="countryGrid" class="country-grid"></div>
-  <div id="emptyState" class="empty-state" style="display:none">No trips yet. Click + to add your first TikTok.</div>
-</div>
-
-<script>
-const FAKE_DATA = {{DATA_JSON}};
-
-// Group TikToks by country. Each group also tracks the unique cities inside.
-function renderHome() {
-  const groups = {};
-  for (const t of FAKE_DATA.tiktoks) {
-    if (!groups[t.country]) groups[t.country] = { country: t.country, cities: new Set(), count: 0 };
-    groups[t.country].cities.add(t.city);
-    groups[t.country].count++;
-  }
-  const countries = Object.values(groups);
-  const grid = document.getElementById('countryGrid');
-  const empty = document.getElementById('emptyState');
-  if (countries.length === 0) {
-    empty.style.display = 'block';
-    return;
-  }
-  let html = '';
-  for (const c of countries) {
-    const url = '/country/' + encodeURIComponent(c.country);
-    const cityCount = c.cities.size;
-    const cityLabel = cityCount === 1 ? '1 city' : cityCount + ' cities';
-    const tiktokLabel = c.count === 1 ? '1 TikTok' : c.count + ' TikToks';
-    html += `<a href="${url}" class="country-card">
-      <div class="country-icon">🌏</div>
-      <div class="country-name">${c.country}</div>
-      <div class="country-cities">${cityLabel}</div>
-      <div class="country-count">${tiktokLabel}</div>
-    </a>`;
-  }
-  grid.innerHTML = html;
-}
-renderHome();
-</script>
-</body>
-</html>
-"""
-
-# Country page — list of city cards filtered to one country.
-HTML_COUNTRY = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{COUNTRY_NAME}} — TikTok Travel Saver</title>
-<style>
-{{BASE_CSS}}
-  /* Country-page-specific */
-  .city-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-  .city-card { background: #1a1a1a; border: 1px solid #282828; border-radius: 12px; padding: 24px; cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease; display: block; }
-  .city-card:hover { transform: translateY(-2px); border-color: #fe2c55; }
-  .city-icon { font-size: 28px; margin-bottom: 12px; }
-  .city-name { font-size: 20px; font-weight: 600; color: #fff; margin-bottom: 4px; }
-  .city-count { font-size: 13px; color: #fe2c55; font-weight: 600; }
-</style>
-</head>
-<body>
-<div class="container">
-  <a href="/" class="back-link">← Back</a>
-  <header class="page-header">
-    <h1>{{COUNTRY_NAME}}</h1>
-  </header>
-
-  <div id="cityGrid" class="city-grid"></div>
-  <div id="emptyState" class="empty-state" style="display:none">No cities for this country yet.</div>
-</div>
-
-<script>
-const FAKE_DATA = {{DATA_JSON}};
-const COUNTRY_NAME = {{COUNTRY_NAME_JSON}};
-
-function renderCountry() {
-  const groups = {};
-  for (const t of FAKE_DATA.tiktoks) {
-    if (t.country !== COUNTRY_NAME) continue;
-    if (!groups[t.city]) groups[t.city] = { city: t.city, count: 0 };
-    groups[t.city].count++;
-  }
-  const cities = Object.values(groups);
-  const grid = document.getElementById('cityGrid');
-  const empty = document.getElementById('emptyState');
-  if (cities.length === 0) {
-    empty.style.display = 'block';
-    return;
-  }
-  let html = '';
-  for (const c of cities) {
-    const url = '/city/' + encodeURIComponent(c.city);
-    const label = c.count === 1 ? '1 TikTok' : c.count + ' TikToks';
-    html += `<a href="${url}" class="city-card">
-      <div class="city-icon">📍</div>
-      <div class="city-name">${c.city}</div>
-      <div class="city-count">${label}</div>
-    </a>`;
-  }
-  grid.innerHTML = html;
-}
-renderCountry();
-</script>
-</body>
-</html>
-"""
-
-# City page — list of TikTok cards filtered to one city.
-HTML_CITY = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{CITY_NAME}} — TikTok Travel Saver</title>
-<style>
-{{BASE_CSS}}
-  /* City-page-specific */
-  .tiktok-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-  .tiktok-card { background: #1a1a1a; border: 1px solid #282828; border-radius: 12px; padding: 18px; cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease; display: block; }
-  .tiktok-card:hover { transform: translateY(-2px); border-color: #fe2c55; }
-  .tiktok-thumb { background: #111; border: 1px solid #222; border-radius: 8px; height: 140px; display: flex; align-items: center; justify-content: center; color: #444; font-size: 36px; margin-bottom: 12px; }
-  .tiktok-title { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 6px; line-height: 1.3; }
-  .tiktok-author { font-size: 12px; color: #888; margin-bottom: 10px; }
-  .tiktok-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .tiktok-places { font-size: 12px; color: #aaa; }
-</style>
-</head>
-<body>
-<div class="container">
-  <a href="{{BACK_HREF}}" class="back-link">← Back to {{BACK_LABEL}}</a>
-  <header class="page-header">
-    <h1>{{CITY_NAME}}</h1>
-  </header>
-
-  <div id="tiktokGrid" class="tiktok-grid"></div>
-  <div id="emptyState" class="empty-state" style="display:none">No TikToks for this city yet.</div>
-</div>
-
-<script>
-const FAKE_DATA = {{DATA_JSON}};
-const CITY_NAME = {{CITY_NAME_JSON}};
-
-function renderCity() {
-  const filtered = FAKE_DATA.tiktoks.filter(t => t.city === CITY_NAME);
-  const grid = document.getElementById('tiktokGrid');
-  const empty = document.getElementById('emptyState');
-  if (filtered.length === 0) {
-    empty.style.display = 'block';
-    return;
-  }
-  let html = '';
-  for (const t of filtered) {
-    const title = (t.video_summary && t.video_summary.main_topic) || 'Untitled';
-    const author = t.author || '';
-    const placeCount = (t.places || []).length;
-    const placeLabel = placeCount === 1 ? '1 place' : placeCount + ' places';
-    const url = '/tiktok/' + encodeURIComponent(t.id);
-    const reviewBadge = t.status === 'needs_review' ? '<span class="tag review">Needs Review</span>' : '';
-    html += `<a href="${url}" class="tiktok-card">
-      <div class="tiktok-thumb">🎬</div>
-      <div class="tiktok-title">${title}</div>
-      <div class="tiktok-author">${author}</div>
-      <div class="tiktok-meta">
-        <span class="tiktok-places">${placeLabel}</span>
-        ${reviewBadge}
-      </div>
-    </a>`;
-  }
-  grid.innerHTML = html;
-}
-renderCity();
-</script>
-</body>
-</html>
-"""
-
-# Detail page — full extracted info for one TikTok. Reuses the same render logic
-# that the existing HTML_PAGE uses for results, but reads data from a server-injected
-# <script> tag instead of polling /status.
-HTML_DETAIL = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TikTok Detail — TikTok Travel Saver</title>
-<style>
-{{BASE_CSS}}
-  /* Detail-page-specific (mirrors HTML_PAGE results section) */
-  .place-card { background: #111; border: 1px solid #222; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
-  .place-name { font-size: 16px; font-weight: 600; color: #fff; }
-  .place-type { font-size: 12px; color: #888; margin-left: 8px; }
-  .place-parent { font-size: 12px; color: #666; }
-  .place-detail { font-size: 13px; color: #aaa; margin-top: 6px; line-height: 1.5; }
-  .place-detail strong { color: #ccc; }
-  .evidence { display: flex; gap: 6px; margin-top: 8px; }
-  .ev { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
-  .ev.on { background: #1a2e1a; color: #4cd964; }
-  .ev.off { background: #1a1a1a; color: #555; }
-
-  .note-item { padding: 8px 0; border-bottom: 1px solid #222; font-size: 13px; color: #aaa; }
-  .note-item:last-child { border-bottom: none; }
-  .note-type { color: #fe2c55; font-weight: 600; text-transform: uppercase; font-size: 11px; margin-right: 6px; }
-  .review-item { padding: 8px 0; border-bottom: 1px solid #222; font-size: 13px; }
-  .review-item:last-child { border-bottom: none; }
-  .review-issue { color: #f5a623; font-weight: 600; }
-  .review-reason { color: #888; }
-
-  .summary-text { color: #bbb; font-size: 14px; line-height: 1.6; }
-  .map-query { font-size: 12px; color: #666; font-family: monospace; margin-top: 4px; }
-  .raw-data-content { background: #111; border: 1px solid #222; border-radius: 8px; padding: 14px; margin-top: 8px; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 12px; line-height: 1.7; color: #aaa; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; }
-  .raw-data-empty { color: #555; font-style: italic; }
-</style>
-</head>
-<body>
-<div class="container">
-  <a href="{{BACK_HREF}}" class="back-link">← Back to {{CITY_NAME}}</a>
-  <div id="results"></div>
-</div>
-
-<script>
-const TIKTOK = {{DATA_JSON}};
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text == null ? '' : text;
-  return div.innerHTML;
-}
-
-function renderResults(r, transcript, screenText) {
-  const el = document.getElementById('results');
-  let html = '';
-
-  // Video summary
-  const s = r.video_summary || {};
-  html += `<div class="card">
-    <h2>${escapeHtml(s.main_topic) || 'Video Summary'}</h2>
-    <p class="summary-text">${escapeHtml(s.summary) || ''}</p>
-    <div class="meta-row" style="margin-top:10px">
-      <span class="tag">${escapeHtml(s.destination_city) || '?'}, ${escapeHtml(s.destination_country) || '?'}</span>
-      <span class="tag ${s.usefulness_for_itinerary || ''}">${escapeHtml(s.usefulness_for_itinerary) || '?'} usefulness</span>
-      ${(s.overall_vibe || []).map(v => `<span class="tag vibe">${escapeHtml(v)}</span>`).join('')}
-    </div>
-  </div>`;
-
-  // Raw data: Transcript + Screen Text
-  html += `<div class="card">
-    <h2>🔍 Raw Extracted Data</h2>
-    <h3>Audio Transcript</h3>
-    ${transcript ? `<div class="raw-data-content">${escapeHtml(transcript)}</div>` : '<div class="raw-data-empty">No spoken transcript detected (music-only video)</div>'}
-    <h3 style="margin-top:16px">On-Screen Text (Gemini Vision)</h3>
-    ${screenText ? `<div class="raw-data-content">${escapeHtml(screenText)}</div>` : '<div class="raw-data-empty">No on-screen text detected</div>'}
-  </div>`;
-
-  // Places
-  const places = r.places || [];
-  html += `<div class="card"><h2>📍 Places (${places.length})</h2>`;
-  for (const p of places) {
-    const parentTxt = p.parent_place ? `<span class="place-parent">inside ${escapeHtml(p.parent_place)}</span>` : '';
-    const confClass = p.confidence || 'medium';
-    html += `<div class="place-card">
-      <div>
-        <span class="place-name">${escapeHtml(p.name) || '(unnamed)'}</span>
-        <span class="place-type">${escapeHtml(p.place_type) || ''}</span>
-        ${parentTxt}
-        <span class="tag ${confClass}" style="margin-left:8px;font-size:11px">${escapeHtml(p.confidence)}</span>
-      </div>`;
-
-    if (p.creator_notes && p.creator_notes.length) {
-      html += `<div class="place-detail">${p.creator_notes.map(n => `• ${escapeHtml(n)}`).join('<br>')}</div>`;
-    }
-    if (p.mentioned_foods_or_items && p.mentioned_foods_or_items.length) {
-      html += `<div class="place-detail"><strong>Food/items:</strong> ${p.mentioned_foods_or_items.map(escapeHtml).join(', ')}</div>`;
-    }
-    if (p.warnings_or_requirements && p.warnings_or_requirements.length) {
-      html += `<div class="place-detail" style="color:#f5a623"><strong>⚠️</strong> ${p.warnings_or_requirements.map(escapeHtml).join('; ')}</div>`;
-    }
-    if (p.best_for && p.best_for.length) {
-      html += `<div class="meta-row" style="margin-top:8px">${p.best_for.map(b => `<span class="tag">${escapeHtml(b)}</span>`).join('')}</div>`;
-    }
-
-    const se = p.source_evidence || {};
-    html += `<div class="evidence">
-      <span class="ev ${se.caption ? 'on' : 'off'}">caption</span>
-      <span class="ev ${se.transcript ? 'on' : 'off'}">transcript</span>
-      <span class="ev ${se.ocr ? 'on' : 'off'}">ocr</span>
-    </div>`;
-    html += `<div class="map-query">🔍 ${escapeHtml(p.map_search_query) || ''}</div>`;
-    html += `</div>`;
-  }
-  html += `</div>`;
-
-  // Non-place notes
-  const notes = r.non_place_notes || [];
-  if (notes.length) {
-    html += `<div class="card"><h2>📝 Notes (${notes.length})</h2>`;
-    for (const n of notes) {
-      const related = n.related_place ? ` → <em>${escapeHtml(n.related_place)}</em>` : '';
-      html += `<div class="note-item"><span class="note-type">${escapeHtml(n.type) || '?'}</span>${escapeHtml(n.text) || ''}${related}</div>`;
-    }
-    html += `</div>`;
-  }
-
-  // Needs review
-  const reviews = r.needs_user_review || [];
-  if (reviews.length) {
-    html += `<div class="card"><h2>⚠️ Needs Review (${reviews.length})</h2>`;
-    for (const rv of reviews) {
-      html += `<div class="review-item"><span class="review-issue">${escapeHtml(rv.issue) || '?'}</span><br><span class="review-reason">${escapeHtml(rv.reason) || ''}</span></div>`;
-    }
-    html += `</div>`;
-  }
-
-  el.innerHTML = html;
-}
-
-renderResults(TIKTOK, TIKTOK.transcript || '', TIKTOK.screen_text || '');
-</script>
-</body>
-</html>
-"""
-
-
-HTML_PAGE = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TikTok Travel Saver</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
-  .container { max-width: 900px; margin: 0 auto; padding: 24px; }
-  h1 { font-size: 28px; margin-bottom: 4px; color: #fff; }
-  .subtitle { color: #888; margin-bottom: 24px; font-size: 14px; }
-
-  /* Input */
-  .input-row { display: flex; gap: 10px; margin-bottom: 24px; }
-  input[type=text] { flex: 1; padding: 12px 16px; border-radius: 10px; border: 1px solid #333; background: #1a1a1a; color: #fff; font-size: 15px; outline: none; }
-  input[type=text]:focus { border-color: #fe2c55; }
-  button { padding: 12px 24px; border-radius: 10px; border: none; background: #fe2c55; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-  button:hover { background: #e0274d; }
-  button:disabled { background: #444; cursor: not-allowed; }
-
-  /* Progress bar */
-  .progress-container { margin-bottom: 20px; display: none; }
-  .progress-bar { height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
-  .progress-fill { height: 100%; background: linear-gradient(90deg, #fe2c55, #ff6b81); border-radius: 3px; transition: width 0.4s ease; width: 0%; }
-  .step-label { font-size: 13px; color: #888; margin-top: 6px; }
-
-  /* Log */
-  .log-box { background: #1a1a1a; border: 1px solid #282828; border-radius: 10px; padding: 16px; margin-bottom: 24px; max-height: 300px; overflow-y: auto; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 13px; line-height: 1.7; display: none; }
-  .log-line { color: #aaa; }
-  .log-line.step { color: #fe2c55; font-weight: 600; margin-top: 8px; }
-  .log-line.warn { color: #f5a623; }
-  .log-line.error { color: #ff4444; }
-  .log-line.done { color: #4cd964; font-weight: 600; }
-
-  /* Results */
-  .results { display: none; }
-  .card { background: #1a1a1a; border: 1px solid #282828; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
-  .card h2 { font-size: 18px; color: #fff; margin-bottom: 12px; }
-  .card h3 { font-size: 15px; color: #fe2c55; margin: 14px 0 8px; }
-  .meta-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
-  .tag { background: #282828; color: #ccc; padding: 4px 10px; border-radius: 20px; font-size: 12px; }
-  .tag.vibe { background: #2a1a2e; color: #d4a0e0; }
-  .tag.high { background: #1a2e1a; color: #4cd964; }
-  .tag.medium { background: #2e2a1a; color: #f5a623; }
-  .tag.low { background: #2e1a1a; color: #ff6b6b; }
-
-  .place-card { background: #111; border: 1px solid #222; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
-  .place-name { font-size: 16px; font-weight: 600; color: #fff; }
-  .place-type { font-size: 12px; color: #888; margin-left: 8px; }
-  .place-parent { font-size: 12px; color: #666; }
-  .place-detail { font-size: 13px; color: #aaa; margin-top: 6px; line-height: 1.5; }
-  .place-detail strong { color: #ccc; }
-  .evidence { display: flex; gap: 6px; margin-top: 8px; }
-  .ev { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
-  .ev.on { background: #1a2e1a; color: #4cd964; }
-  .ev.off { background: #1a1a1a; color: #555; }
-
-  .note-item { padding: 8px 0; border-bottom: 1px solid #222; font-size: 13px; color: #aaa; }
-  .note-item:last-child { border-bottom: none; }
-  .note-type { color: #fe2c55; font-weight: 600; text-transform: uppercase; font-size: 11px; margin-right: 6px; }
-  .review-item { padding: 8px 0; border-bottom: 1px solid #222; font-size: 13px; }
-  .review-item:last-child { border-bottom: none; }
-  .review-issue { color: #f5a623; font-weight: 600; }
-  .review-reason { color: #888; }
-
-  .summary-text { color: #bbb; font-size: 14px; line-height: 1.6; }
-  .map-query { font-size: 12px; color: #666; font-family: monospace; margin-top: 4px; }
-
-  /* Raw data sections */
-  .raw-data-toggle { cursor: pointer; color: #fe2c55; font-size: 13px; font-weight: 600; margin-top: 8px; display: inline-block; }
-  .raw-data-toggle:hover { text-decoration: underline; }
-  .raw-data-content { background: #111; border: 1px solid #222; border-radius: 8px; padding: 14px; margin-top: 8px; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 12px; line-height: 1.7; color: #aaa; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; }
-  .raw-data-empty { color: #555; font-style: italic; }
-</style>
-</head>
-<body>
-<div class="container">
-  <h1>🗺️ TikTok Travel Saver</h1>
-  <p class="subtitle">Paste a TikTok URL to extract places and travel info</p>
-
-  <div class="input-row">
-    <input type="text" id="urlInput" placeholder="https://www.tiktok.com/@user/video/123..." />
-    <button id="goBtn" onclick="startPipeline()">Extract Places</button>
-  </div>
-
-  <div class="progress-container" id="progressContainer">
-    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-    <div class="step-label" id="stepLabel">Starting...</div>
-  </div>
-
-  <div class="log-box" id="logBox"></div>
-
-  <div class="results" id="results"></div>
-</div>
-
-<script>
-const STEP_NAMES = {
-  1: "Fetching caption",
-  2: "Downloading video",
-  3: "Transcribing audio",
-  4: "Extracting video frames",
-  5: "Reading on-screen text (Gemini Vision)",
-  6: "Combining sources",
-  7: "Extracting places with AI",
-  8: "Done"
-};
-
-let pollTimer = null;
-let lastLogCount = 0;
-
-function startPipeline() {
-  const url = document.getElementById('urlInput').value.trim();
-  if (!url) return alert('Please paste a TikTok URL');
-
-  document.getElementById('goBtn').disabled = true;
-  document.getElementById('progressContainer').style.display = 'block';
-  document.getElementById('logBox').style.display = 'block';
-  document.getElementById('logBox').innerHTML = '';
-  document.getElementById('results').style.display = 'none';
-  document.getElementById('results').innerHTML = '';
-  lastLogCount = 0;
-
-  fetch('/start', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({url}) });
-  pollTimer = setInterval(pollStatus, 800);
-}
-
-function pollStatus() {
-  fetch('/status').then(r => r.json()).then(data => {
-    // Progress bar
-    const pct = Math.round((data.current_step / data.total_steps) * 100);
-    document.getElementById('progressFill').style.width = pct + '%';
-    const stepName = STEP_NAMES[data.current_step] || '';
-    document.getElementById('stepLabel').textContent = `Step ${data.current_step}/${data.total_steps}: ${stepName}`;
-
-    // Logs
-    const logBox = document.getElementById('logBox');
-    for (let i = lastLogCount; i < data.logs.length; i++) {
-      const line = document.createElement('div');
-      line.className = 'log-line';
-      const msg = data.logs[i];
-      if (msg.startsWith('⚠️') || msg.startsWith('⚠')) line.className += ' warn';
-      else if (msg.startsWith('❌')) line.className += ' error';
-      else if (msg === 'Done!') line.className += ' done';
-      else if (msg.match(/^(Fetching|Downloading|Transcribing|Extracting|Reading|Combining|Sending)/)) line.className += ' step';
-      line.textContent = msg;
-      logBox.appendChild(line);
-    }
-    lastLogCount = data.logs.length;
-    logBox.scrollTop = logBox.scrollHeight;
-
-    // Done
-    if (!data.running) {
-      clearInterval(pollTimer);
-      document.getElementById('goBtn').disabled = false;
-      if (data.result) renderResults(data.result, data.transcript, data.screen_text);
-      if (data.error) {
-        document.getElementById('stepLabel').textContent = 'Pipeline failed — see logs above';
-      }
-    }
-  });
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-function renderResults(r, transcript, screenText) {
-  const el = document.getElementById('results');
-  el.style.display = 'block';
-  let html = '';
-
-  // Video summary
-  const s = r.video_summary || {};
-  html += `<div class="card">
-    <h2>${s.main_topic || 'Video Summary'}</h2>
-    <p class="summary-text">${s.summary || ''}</p>
-    <div class="meta-row" style="margin-top:10px">
-      <span class="tag">${s.destination_city || '?'}, ${s.destination_country || '?'}</span>
-      <span class="tag ${s.usefulness_for_itinerary}">${s.usefulness_for_itinerary || '?'} usefulness</span>
-      ${(s.overall_vibe || []).map(v => `<span class="tag vibe">${v}</span>`).join('')}
-    </div>
-  </div>`;
-
-  // Raw data: Transcript + Screen Text
-  html += `<div class="card">
-    <h2>🔍 Raw Extracted Data</h2>
-    <h3>Audio Transcript</h3>
-    ${transcript ? `<div class="raw-data-content">${escapeHtml(transcript)}</div>` : '<div class="raw-data-empty">No spoken transcript detected (music-only video)</div>'}
-    <h3 style="margin-top:16px">On-Screen Text (Gemini Vision)</h3>
-    ${screenText ? `<div class="raw-data-content">${escapeHtml(screenText)}</div>` : '<div class="raw-data-empty">No on-screen text detected</div>'}
-  </div>`;
-
-  // Places
-  const places = r.places || [];
-  html += `<div class="card"><h2>📍 Places (${places.length})</h2>`;
-  for (const p of places) {
-    const parentTxt = p.parent_place ? `<span class="place-parent">inside ${p.parent_place}</span>` : '';
-    const confClass = p.confidence || 'medium';
-    html += `<div class="place-card">
-      <div>
-        <span class="place-name">${p.name}</span>
-        <span class="place-type">${p.place_type || ''}</span>
-        ${parentTxt}
-        <span class="tag ${confClass}" style="margin-left:8px;font-size:11px">${p.confidence}</span>
-      </div>`;
-
-    if (p.creator_notes && p.creator_notes.length) {
-      html += `<div class="place-detail">${p.creator_notes.map(n => `• ${n}`).join('<br>')}</div>`;
-    }
-    if (p.mentioned_foods_or_items && p.mentioned_foods_or_items.length) {
-      html += `<div class="place-detail"><strong>Food/items:</strong> ${p.mentioned_foods_or_items.join(', ')}</div>`;
-    }
-    if (p.warnings_or_requirements && p.warnings_or_requirements.length) {
-      html += `<div class="place-detail" style="color:#f5a623"><strong>⚠️</strong> ${p.warnings_or_requirements.join('; ')}</div>`;
-    }
-    if (p.best_for && p.best_for.length) {
-      html += `<div class="meta-row" style="margin-top:8px">${p.best_for.map(b => `<span class="tag">${b}</span>`).join('')}</div>`;
-    }
-
-    const se = p.source_evidence || {};
-    html += `<div class="evidence">
-      <span class="ev ${se.caption ? 'on' : 'off'}">caption</span>
-      <span class="ev ${se.transcript ? 'on' : 'off'}">transcript</span>
-      <span class="ev ${se.ocr ? 'on' : 'off'}">ocr</span>
-    </div>`;
-    html += `<div class="map-query">🔍 ${p.map_search_query || ''}</div>`;
-    html += `</div>`;
-  }
-  html += `</div>`;
-
-  // Non-place notes
-  const notes = r.non_place_notes || [];
-  if (notes.length) {
-    html += `<div class="card"><h2>📝 Notes (${notes.length})</h2>`;
-    for (const n of notes) {
-      const related = n.related_place ? ` → <em>${n.related_place}</em>` : '';
-      html += `<div class="note-item"><span class="note-type">${n.type || '?'}</span>${n.text || ''}${related}</div>`;
-    }
-    html += `</div>`;
-  }
-
-  // Needs review
-  const reviews = r.needs_user_review || [];
-  if (reviews.length) {
-    html += `<div class="card"><h2>⚠️ Needs Review (${reviews.length})</h2>`;
-    for (const rv of reviews) {
-      html += `<div class="review-item"><span class="review-issue">${rv.issue || '?'}</span><br><span class="review-reason">${rv.reason || ''}</span></div>`;
-    }
-    html += `</div>`;
-  }
-
-  el.innerHTML = html;
-}
-</script>
-</body>
-</html>
-"""
+# ---------------------------------------------------------------------------
+# HTML / CSS templates - loaded from templates/ directory
+# ---------------------------------------------------------------------------
+
+def load_template(name: str) -> str:
+    """Read a template file from the templates/ directory."""
+    path = os.path.join(PROJECT_DIR, "templates", name)
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+BASE_CSS     = load_template("base.css")
+HTML_HOME    = load_template("home.html")
+HTML_COUNTRY = load_template("country.html")
+HTML_CITY    = load_template("city.html")
+HTML_DETAIL  = load_template("detail.html")
+HTML_PAGE    = load_template("add.html")
 
 
 # ---------------------------------------------------------------------------
@@ -1556,10 +594,7 @@ def safe_json_for_html(data):
 
 
 def find_tiktok_by_id(tiktok_id):
-    for t in FAKE_DATA.get("tiktoks", []):
-        if t.get("id") == tiktok_id:
-            return t
-    return None
+    return db_find_by_id(tiktok_id)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1586,11 +621,12 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
 
         if path == "/":
-            # Home page — list of city cards.
+            # Home page — list of country cards.
+            live_data = db_fetch_all()
             body = (
                 HTML_HOME
                 .replace("{{BASE_CSS}}", BASE_CSS)
-                .replace("{{DATA_JSON}}", safe_json_for_html(FAKE_DATA))
+                .replace("{{DATA_JSON}}", safe_json_for_html(live_data))
             )
             self._send_html(body)
 
@@ -1600,12 +636,13 @@ class Handler(BaseHTTPRequestHandler):
             if not country_name:
                 self._send_404("Country name missing")
                 return
+            live_data = db_fetch_all()
             body = (
                 HTML_COUNTRY
                 .replace("{{BASE_CSS}}", BASE_CSS)
                 .replace("{{COUNTRY_NAME_JSON}}", safe_json_for_html(country_name))
                 .replace("{{COUNTRY_NAME}}", html_lib.escape(country_name))
-                .replace("{{DATA_JSON}}", safe_json_for_html(FAKE_DATA))
+                .replace("{{DATA_JSON}}", safe_json_for_html(live_data))
             )
             self._send_html(body)
 
@@ -1615,10 +652,11 @@ class Handler(BaseHTTPRequestHandler):
             if not city_name:
                 self._send_404("City name missing")
                 return
+            live_data = db_fetch_all()
             # Look up country from the first matching TikTok so we can build the
             # back link to its country page. Falls back to home if no match.
             country_name = next(
-                (t["country"] for t in FAKE_DATA.get("tiktoks", []) if t.get("city") == city_name),
+                (t["country"] for t in live_data.get("tiktoks", []) if t.get("city") == city_name),
                 None,
             )
             if country_name:
@@ -1634,7 +672,7 @@ class Handler(BaseHTTPRequestHandler):
                 .replace("{{BACK_LABEL}}", html_lib.escape(back_label))
                 .replace("{{CITY_NAME_JSON}}", safe_json_for_html(city_name))
                 .replace("{{CITY_NAME}}", html_lib.escape(city_name))
-                .replace("{{DATA_JSON}}", safe_json_for_html(FAKE_DATA))
+                .replace("{{DATA_JSON}}", safe_json_for_html(live_data))
             )
             self._send_html(body)
 
@@ -1668,6 +706,14 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._send_404()
 
+    def _send_json(self, data, status=200):
+        encoded = json.dumps(data, default=str).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
     def do_POST(self):
         path = urlparse(self.path).path
         if path == "/start":
@@ -1679,10 +725,25 @@ class Handler(BaseHTTPRequestHandler):
                 t = threading.Thread(target=run_pipeline, args=(url,), daemon=True)
                 t.start()
 
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(b'{"ok":true}')
+            self._send_json({"ok": True})
+
+        elif path == "/save":
+            # Save the current pipeline result to Supabase.
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length))
+            tiktok_url = body.get("url", "")
+            extraction = body.get("result") or pipeline_state.get("result")
+            transcript = body.get("transcript") or pipeline_state.get("transcript", "")
+            screen_text = body.get("screen_text") or pipeline_state.get("screen_text", "")
+            if not tiktok_url or not extraction:
+                self._send_json({"error": "Missing url or result"}, status=400)
+                return
+            try:
+                saved = db_save_tiktok(tiktok_url, extraction, transcript, screen_text)
+                self._send_json({"ok": True, "id": saved.get("id"), "city": saved.get("city"), "country": saved.get("country")})
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=500)
+
         else:
             self.send_response(404)
             self.end_headers()
