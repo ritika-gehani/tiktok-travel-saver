@@ -11,3 +11,5 @@ final-extraction.json
 debug-raw-response.txt
 temp-video.mp4
 temp-audio.mp3
+*.csv
+__pycache__/
