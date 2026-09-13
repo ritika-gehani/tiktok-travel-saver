@@ -271,6 +271,7 @@ function applySearch(q) {
     if (show && !isAdd && el.classList.contains('trip')) visible++;
   }
   document.getElementById('emptyState').classList.toggle('hidden', !q || visible > 0);
+  document.getElementById('tripCount').textContent = plural(visible, 'country', 'countries');
   document.getElementById('recentSection').classList.toggle('hidden', !!q && !document.querySelector('.save:not(.hidden)'));
 }
 
