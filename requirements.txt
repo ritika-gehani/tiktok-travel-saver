@@ -1,0 +1,4 @@
+# Core: web UI + library (works offline with the local JSON store)
+python-dotenv>=1.0
+supabase>=2.0
+pytest>=8.0

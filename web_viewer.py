@@ -20,11 +20,18 @@ from urllib.parse import parse_qs, urlparse, quote, unquote
 import html as html_lib
 
 import base64
-import cv2
-from google import genai
-from google.genai import types
-from playwright.sync_api import sync_playwright
-from db import db_fetch_all, db_find_by_id, db_save_tiktok
+from db import BACKEND, db_fetch_all, db_find_by_id, db_save_tiktok
+
+# Extraction-only dependencies (opencv, google-genai, playwright) are heavy and
+# only needed for POST /start, so the browse/save UI works without them.
+try:
+    import cv2
+    from google import genai
+    from google.genai import types
+    from playwright.sync_api import sync_playwright
+    EXTRACTION_AVAILABLE = True
+except ImportError:
+    EXTRACTION_AVAILABLE = False
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROMPT_FILE = os.path.join(PROJECT_DIR, "prompt-extract-places.txt")
@@ -70,6 +77,8 @@ def log(msg, step=None):
 
 def load_env():
     env_path = os.path.join(PROJECT_DIR, ".env")
+    if not os.path.exists(env_path):
+        return
     with open(env_path) as f:
         for line in f:
             line = line.strip()
@@ -126,6 +135,10 @@ def run_pipeline(tiktok_url):
     carousel = "/photo/" in tiktok_url
 
     try:
+        if not EXTRACTION_AVAILABLE:
+            raise Exception(
+                "Extraction dependencies not installed — run: pip install -r requirements-extraction.txt"
+            )
         load_env()
         google_key = os.environ.get("GOOGLE_API_KEY")
         assemblyai_key = os.environ.get("ASSEMBLYAI_API_KEY")
@@ -648,10 +661,13 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    port = 5050
+    port = int(os.environ.get("PORT", 5050))
     server = HTTPServer(("0.0.0.0", port), Handler)
     print(f"🗺️  TikTok Travel Saver — Web Viewer")
     print(f"   Open http://localhost:{port} in your browser")
+    print(f"   Library backend: {BACKEND}" + ("" if BACKEND == "supabase" else " (no Supabase keys — using local JSON file)"))
+    if not EXTRACTION_AVAILABLE:
+        print("   Extraction disabled (install requirements-extraction.txt to enable /add)")
     print(f"   Press Ctrl+C to stop\n")
     try:
         server.serve_forever()

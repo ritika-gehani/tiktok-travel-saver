@@ -19,17 +19,28 @@ Extract travel destinations and place recommendations from TikTok videos and pho
 
 ## Quick Start
 
-### 1. Install dependencies
+### 0. Just want to browse the app? (no keys needed)
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+make install      # python-dotenv, supabase, pytest
+make test         # runs the HTTP tests against the local store
+make run          # open http://localhost:5050
+```
+
+Without Supabase credentials the library is stored in a local JSON file
+(`data/library.json`, ignored by git), seeded from `data/seed-library.json`
+with a few sample TikToks so every page has content. Set `LIBRARY_FILE` to use a
+different path. The **+ Add TikTok** extraction flow needs the extra setup below.
+
+### 1. Install extraction dependencies
 
 ```bash
 # Command-line tools
 brew install yt-dlp
 
-# Python packages
-pip3 install yt-dlp opencv-python google-genai assemblyai playwright python-dotenv supabase
-
-# Playwright browser (needed for photo carousels)
-playwright install chromium
+# Python packages + Playwright browser (needed for photo carousels)
+make install-extraction
 ```
 
 ### 2. Set up API keys & Supabase
@@ -47,7 +58,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 - **AssemblyAI API key** — get one at [assemblyai.com](https://www.assemblyai.com/) (free tier available, only needed for videos)
 - **Supabase URL & service_role key** — create a free project at [supabase.com](https://supabase.com), then get them from Project Settings → API. Only needed for the web UI's library feature.
 
-### 3. Create the Supabase table
+### 3. Create the Supabase table (optional — skip to keep the local JSON store)
 
 In your Supabase dashboard, open the SQL Editor and run:
 
@@ -130,7 +141,9 @@ Full output is saved to `final-extraction.json`. See [TECHNICAL.md](TECHNICAL.md
 tiktok-travel-saver/
 ├── process_tiktok.py          # CLI pipeline (run from terminal)
 ├── web_viewer.py              # Web UI: HTTP server + extraction pipeline
-├── db.py                      # Supabase database operations
+├── db.py                      # Library storage: Supabase, or local JSON when no keys are set
+├── data/seed-library.json     # Sample TikToks used to seed the local store
+├── tests/                     # pytest HTTP tests for the web UI (make test)
 ├── templates/                 # HTML/CSS templates for the web UI
 │   ├── base.css               # Shared dark-mode styles
 │   ├── home.html              # Home page (country grid)
@@ -141,6 +154,8 @@ tiktok-travel-saver/
 ├── prompt-extract-places.txt  # AI prompt for place extraction
 ├── final-extraction.json      # Output from last CLI run
 ├── PRODUCT_PLAN.md            # Product vision & roadmap
+├── Makefile                   # install / install-extraction / test / run
+├── requirements.txt           # Core deps; requirements-extraction.txt adds the pipeline deps
 ├── .env                       # API keys + Supabase creds (not committed)
 ├── .gitignore
 ├── README.md                  # This file

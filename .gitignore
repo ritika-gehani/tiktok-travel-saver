@@ -13,3 +13,5 @@ temp-video.mp4
 temp-audio.mp3
 *.csv
 __pycache__/
+data/library.json
+.venv/
