@@ -15,6 +15,8 @@
   .source { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-2); margin-top: 10px; }
   .source a { color: var(--ink); border-bottom: 1px solid var(--line-strong); }
   .source a:hover { border-color: var(--ink); }
+  .review { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+  .review .note { font-size: 12px; color: var(--ink-2); }
 </style>
 </head>
 <body>
@@ -32,6 +34,10 @@
       <div class="eyebrow" id="eyebrow"></div>
       <h1 id="title"></h1>
       <div class="source" id="source"></div>
+    </div>
+    <div class="review">
+      <button class="btn primary" id="reviewBtn"></button>
+      <span class="note" id="reviewNote"></span>
     </div>
   </div>
   <div id="results"></div>
@@ -57,6 +63,46 @@ document.getElementById('source').innerHTML =
   (safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener">Open on TikTok ↗</a>` : '');
 
 renderExtraction(document.getElementById('results'), TIKTOK, TIKTOK.transcript || '', TIKTOK.screen_text || '');
+
+const reviewBtn = document.getElementById('reviewBtn');
+const reviewNote = document.getElementById('reviewNote');
+
+function paintStatus() {
+  const reviewed = TIKTOK.status === 'reviewed';
+  document.getElementById('eyebrow').firstElementChild.className = `status ${TIKTOK.status}`;
+  document.getElementById('eyebrow').firstElementChild.textContent = reviewed ? 'Reviewed' : 'Needs review';
+  reviewBtn.textContent = reviewed ? 'Undo approval' : 'Looks good — approve';
+  reviewBtn.className = reviewed ? 'btn' : 'btn primary';
+  const when = TIKTOK.reviewed_at
+    ? new Date(TIKTOK.reviewed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '';
+  reviewNote.textContent = reviewed
+    ? (when ? `Approved ${when}` : 'Approved')
+    : 'Check the places below, then approve.';
+}
+
+reviewBtn.addEventListener('click', async () => {
+  const next = TIKTOK.status === 'reviewed' ? 'needs_review' : 'reviewed';
+  reviewBtn.disabled = true;
+  try {
+    const res = await fetch('/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: TIKTOK.id, status: next }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not update review status');
+    TIKTOK.status = data.status;
+    TIKTOK.reviewed_at = data.reviewed_at || '';
+    paintStatus();
+  } catch (err) {
+    reviewNote.textContent = err.message;
+  } finally {
+    reviewBtn.disabled = false;
+  }
+});
+
+paintStatus();
 </script>
 </body>
 </html>

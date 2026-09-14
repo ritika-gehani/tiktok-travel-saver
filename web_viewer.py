@@ -20,7 +20,15 @@ from urllib.parse import parse_qs, urlparse, quote, unquote
 import html as html_lib
 
 import base64
-from db import BACKEND, db_create_trip, db_fetch_all, db_find_by_id, db_find_trip, db_save_tiktok
+from db import (
+    BACKEND,
+    db_create_trip,
+    db_fetch_all,
+    db_find_by_id,
+    db_find_trip,
+    db_save_tiktok,
+    db_set_status,
+)
 from destinations import canonical_city, canonical_country, search_cities, search_countries
 from labels import for_ui as labels_for_ui, normalize_extraction
 
@@ -671,6 +679,25 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"ok": True, "trip": trip}, status=201)
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
+
+        elif path == "/review":
+            # Approve a TikTok's extraction (or send it back to needs_review).
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length))
+            tiktok_id = body.get("id") or ""
+            status = body.get("status") or "reviewed"
+            if status not in ("needs_review", "reviewed"):
+                self._send_json({"error": f"Unknown status '{status}'"}, status=400)
+                return
+            try:
+                row = db_set_status(tiktok_id, status)
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=500)
+                return
+            if row is None:
+                self._send_json({"error": f"TikTok '{tiktok_id}' not found"}, status=404)
+                return
+            self._send_json({"ok": True, "id": row["id"], "status": row["status"], "reviewed_at": row.get("reviewed_at", "")})
 
         elif path == "/save":
             # Save the current pipeline result into a trip.

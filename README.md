@@ -135,6 +135,7 @@ The web UI:
 | `GET /api/destinations?q=` / `?country=&q=` | Country / city typeahead |
 | `POST /trips` | Create a trip — `{country, city, start_date?, end_date?, planning_mode?}`; unknown names are rejected |
 | `POST /save` | Save an extraction — `{url, result, trip_id}` |
+| `POST /review` | Approve an extraction — `{id, status}` with `reviewed` or `needs_review` |
 
 Paste any TikTok link — full URL, short link, video, or photo carousel. The app figures out the rest.
 

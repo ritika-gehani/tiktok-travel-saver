@@ -338,6 +338,38 @@ def test_seed_file_is_not_modified_by_saves(server):
         assert f.read() == seed_before
 
 
+# --- Review -------------------------------------------------------------------
+
+def test_approving_a_tiktok_clears_needs_review(server, library_file):
+    tiktok_id = "tokyo-7288001122334455667"
+    status, body = get(server, f"/tiktok/{tiktok_id}")
+    assert embedded(body, "TIKTOK")["status"] == "needs_review"
+
+    status, resp = post_json(server, "/review", {"id": tiktok_id, "status": "reviewed"})
+    assert status == 200
+    assert resp["status"] == "reviewed" and resp["reviewed_at"]
+
+    status, body = get(server, f"/tiktok/{tiktok_id}")
+    assert embedded(body, "TIKTOK")["status"] == "reviewed"
+    stored = next(t for t in json.loads(library_file.read_text())["tiktoks"] if t["id"] == tiktok_id)
+    assert stored["status"] == "reviewed" and stored["reviewed_at"]
+
+
+def test_review_can_be_undone(server):
+    tiktok_id = "tokyo-7288001122334455667"
+    post_json(server, "/review", {"id": tiktok_id, "status": "reviewed"})
+    status, resp = post_json(server, "/review", {"id": tiktok_id, "status": "needs_review"})
+    assert status == 200
+    assert resp["status"] == "needs_review" and resp["reviewed_at"] == ""
+
+
+def test_review_rejects_unknown_tiktok_and_status(server):
+    status, _ = post_json(server, "/review", {"id": "nope-123", "status": "reviewed"})
+    assert status == 404
+    status, _ = post_json(server, "/review", {"id": "tokyo-7288001122334455667", "status": "approved"})
+    assert status == 400
+
+
 # --- Migration ----------------------------------------------------------------
 
 def test_legacy_list_library_is_migrated_into_city_trips(library_file):

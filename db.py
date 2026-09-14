@@ -74,6 +74,7 @@ def _merge_row(row: dict) -> dict:
     entry["transcript"] = row.get("transcript") or ""
     entry["screen_text"] = row.get("screen_text") or ""
     entry["created_at"] = row.get("created_at") or ""
+    entry["reviewed_at"] = row.get("reviewed_at") or ""
     return entry
 
 
@@ -242,6 +243,24 @@ def db_find_by_id(tiktok_id: str) -> dict | None:
     else:
         rows = _supabase.table("tiktoks").select("*").eq("id", tiktok_id).limit(1).execute().data
     return _merge_row(rows[0]) if rows else None
+
+
+def db_set_status(tiktok_id: str, status: str) -> dict | None:
+    """Mark a TikTok reviewed (or back to needs_review). Returns the merged row, or None."""
+    if status not in ("needs_review", "reviewed"):
+        raise ValueError(f"Unknown status {status!r}")
+    reviewed_at = _now() if status == "reviewed" else None
+    if _supabase is None:
+        store = _local_read()
+        for row in store["tiktoks"]:
+            if row["id"] == tiktok_id:
+                row["status"] = status
+                row["reviewed_at"] = reviewed_at
+                _local_write(store)
+                return _merge_row(row)
+        return None
+    _supabase.table("tiktoks").update({"status": status, "reviewed_at": reviewed_at}).eq("id", tiktok_id).execute()
+    return db_find_by_id(tiktok_id)
 
 
 def db_save_tiktok(tiktok_url: str, extraction: dict, transcript: str, screen_text: str,
