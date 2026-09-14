@@ -18,6 +18,7 @@ load_env()
 
 # Configuration
 API_KEY = os.environ.get("GOOGLE_API_KEY")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
 PROJECT_DIR = os.path.dirname(__file__)
 CAPTION_FILE = os.path.join(PROJECT_DIR, "caption-data.json")
 TRANSCRIPT_FILE = os.path.join(PROJECT_DIR, "transcript-output.txt")
@@ -101,7 +102,7 @@ client = genai.Client(
 )
 
 response = client.models.generate_content(
-    model='gemini-2.5-flash',
+    model=GEMINI_MODEL,
     contents=prompt
 )
 

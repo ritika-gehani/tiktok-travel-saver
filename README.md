@@ -62,7 +62,7 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
-- **Google Gemini API key** — get one at [ai.google.dev](https://ai.google.dev/) (free tier available)
+- **Google Gemini API key** — get one at [ai.google.dev](https://ai.google.dev/) (free tier available). Extraction defaults to `gemini-3.6-flash`; override with `GEMINI_MODEL` if needed (e.g. `gemini-3.5-flash` during a demand spike).
 - **AssemblyAI API key** — get one at [assemblyai.com](https://www.assemblyai.com/) (free tier available, only needed for videos)
 - **Supabase URL & service_role key** — create a free project at [supabase.com](https://supabase.com), then get them from Project Settings → API. Only needed for the web UI's library feature.
 

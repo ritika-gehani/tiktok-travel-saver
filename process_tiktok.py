@@ -42,13 +42,15 @@ OUTPUT_FILE = os.path.join(PROJECT_DIR, "final-extraction.json")
 TEMP_VIDEO = os.path.join(PROJECT_DIR, "temp-video.mp4")
 TEMP_AUDIO = os.path.join(PROJECT_DIR, "temp-audio.mp3")
 
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+
 
 def gemini_call(client, prompt, max_retries=3):
     """Call Gemini with automatic retry on transient network errors."""
     for attempt in range(1, max_retries + 1):
         try:
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model=GEMINI_MODEL,
                 contents=prompt
             )
             return response.text
@@ -283,7 +285,7 @@ Return only the extracted text, nothing else."""))
 
     print(f"  Sending {len(frames)} frames to Gemini Vision...")
     response = gemini_client.models.generate_content(
-        model='gemini-2.5-flash',
+        model=GEMINI_MODEL,
         contents=contents
     )
     ocr_text = response.text
@@ -469,7 +471,7 @@ Return only the extracted text, nothing else."""))
 
     print(f"  Sending {len(images)} images to Gemini Vision...")
     response = gemini_client.models.generate_content(
-        model='gemini-2.5-flash',
+        model=GEMINI_MODEL,
         contents=contents
     )
     screen_text = response.text
