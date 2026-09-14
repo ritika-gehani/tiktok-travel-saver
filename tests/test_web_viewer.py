@@ -14,10 +14,16 @@ sys.path.insert(0, ROOT)
 
 
 @pytest.fixture()
-def server(tmp_path, monkeypatch):
-    monkeypatch.setenv("LIBRARY_FILE", str(tmp_path / "library.json"))
+def library_file(tmp_path, monkeypatch):
+    path = tmp_path / "library.json"
+    monkeypatch.setenv("LIBRARY_FILE", str(path))
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.delenv("SUPABASE_SERVICE_ROLE_KEY", raising=False)
+    return path
+
+
+@pytest.fixture()
+def server(library_file):
     import web_viewer
 
     httpd = HTTPServer(("127.0.0.1", 0), web_viewer.Handler)
@@ -35,6 +41,11 @@ def get(base, path):
         return e.code, e.read().decode("utf-8")
 
 
+def get_json(base, path):
+    status, body = get(base, path)
+    return status, json.loads(body)
+
+
 def post_json(base, path, payload):
     req = urllib.request.Request(
         base + path,
@@ -49,45 +60,175 @@ def post_json(base, path, payload):
         return e.code, json.loads(e.read())
 
 
-def embedded_data(body):
-    """Pull the LIBRARY_DATA / TIKTOK JSON blob out of the rendered page."""
-    marker = "const LIBRARY_DATA = " if "const LIBRARY_DATA = " in body else "const TIKTOK = "
+def embedded(body, name):
+    """Pull a `const NAME = {...};` JSON blob out of a rendered page."""
+    marker = f"const {name} = "
     start = body.index(marker) + len(marker)
     end = body.index(";\n", start)
     return json.loads(body[start:end].replace("<\\/", "</"))
 
 
-def test_home_lists_seeded_countries(server):
+SEVILLE = {
+    "video_summary": {
+        "main_topic": "Tapas Crawl in Seville",
+        "destination_city": "Seville",
+        "destination_country": "Spain",
+        "usefulness_for_itinerary": "high",
+        "overall_vibe": ["food"],
+        "summary": "Three tapas bars.",
+    },
+    "places": [{"name": "El Rinconcillo", "place_type": "bar", "confidence": "high"}],
+    "non_place_notes": [],
+    "needs_user_review": [],
+}
+
+
+# --- Home -------------------------------------------------------------------
+
+def test_home_lists_one_trip_per_seeded_city(server):
     status, body = get(server, "/")
     assert status == 200
-    data = embedded_data(body)
-    countries = {t["country"] for t in data["tiktoks"]}
-    assert countries == {"Japan", "Portugal", "Mexico"}
+    data = embedded(body, "LIBRARY_DATA")
+    cities = {(t["city"], t["country"]) for t in data["trips"]}
+    assert cities == {
+        ("Tokyo", "Japan"), ("Kyoto", "Japan"),
+        ("Lisbon", "Portugal"), ("Porto", "Portugal"),
+        ("Mexico City", "Mexico"),
+    }
+    trip_ids = {t["id"] for t in data["trips"]}
+    assert all(t["trip_id"] in trip_ids for t in data["tiktoks"])
+    assert data["trips"][0]["flag"]  # country flag derived from ISO code
 
 
-def test_country_and_city_pages_render(server):
-    status, body = get(server, "/country/Japan")
+# --- Destination typeahead ----------------------------------------------------
+
+def test_country_typeahead_filters_as_you_type(server):
+    status, data = get_json(server, "/api/destinations?q=jap")
     assert status == 200
-    assert "<h1>Japan</h1>" in body
+    assert [c["name"] for c in data["countries"]] == ["Japan"]
+    assert data["countries"][0]["code"] == "JP"
 
-    status, body = get(server, "/city/Kyoto")
+    status, data = get_json(server, "/api/destinations?q=zzzz")
     assert status == 200
-    assert "<h1>Kyoto</h1>" in body
-    assert 'href="/country/Japan"' in body
+    assert data["countries"] == []
 
 
-def test_city_with_space_in_name(server):
-    status, body = get(server, "/city/Mexico%20City")
+def test_city_typeahead_is_scoped_to_country(server):
+    status, data = get_json(server, "/api/destinations?country=Japan&q=ky")
     assert status == 200
-    assert "<h1>Mexico City</h1>" in body
+    assert data["country"] == "Japan"
+    assert data["cities"][0] == "Kyoto"
+    assert all(c.lower().startswith("ky") for c in data["cities"])
+
+    # Same prefix, different country: Kyoto must not leak through.
+    status, data = get_json(server, "/api/destinations?country=Portugal&q=ky")
+    assert status == 200
+    assert "Kyoto" not in data["cities"]
+
+    status, data = get_json(server, "/api/destinations?country=Japan&q=kyotoo")
+    assert status == 200
+    assert data["cities"] == []
 
 
-def test_detail_page_shows_places(server):
+def test_city_typeahead_accepts_common_english_spellings(server):
+    status, data = get_json(server, "/api/destinations?country=Spain&q=seville")
+    assert status == 200
+    assert data["cities"] == ["Sevilla"]
+
+    status, resp = post_json(server, "/trips", {"country": "Spain", "city": "Seville"})
+    assert status == 201
+    assert resp["trip"]["city"] == "Sevilla"
+
+
+def test_city_typeahead_unknown_country_is_404(server):
+    status, data = get_json(server, "/api/destinations?country=Narnia&q=a")
+    assert status == 404
+    assert data["cities"] == []
+
+
+# --- Create trip --------------------------------------------------------------
+
+def test_create_trip_canonicalises_country_and_city(server):
+    status, resp = post_json(
+        server, "/trips",
+        {"country": "japan", "city": "osaka", "start_date": "2026-06-01", "planning_mode": "itinerary"},
+    )
+    assert status == 201
+    trip = resp["trip"]
+    assert (trip["id"], trip["country"], trip["city"]) == ("osaka-japan", "Japan", "Osaka")
+    assert trip["planning_mode"] == "itinerary"
+    assert trip["start_date"] == "2026-06-01"
+
+    status, body = get(server, "/trip/osaka-japan")
+    assert status == 200
+    assert embedded(body, "TRIP")["city"] == "Osaka"
+    assert embedded(body, "TIKTOKS") == []
+
+
+def test_create_trip_rejects_unknown_country_and_city(server):
+    status, resp = post_json(server, "/trips", {"country": "Narnia", "city": "Cair Paravel"})
+    assert status == 400
+    assert resp["error"] == "unknown_country"
+
+    status, resp = post_json(server, "/trips", {"country": "Japan", "city": "Kyotoo"})
+    assert status == 400
+    assert resp["error"] == "unknown_city"
+    assert "Kyotoo" in resp["message"] and "Japan" in resp["message"]
+
+
+def test_create_trip_rejects_bad_date_range(server):
+    status, _ = post_json(
+        server, "/trips",
+        {"country": "Japan", "city": "Osaka", "start_date": "2026-06-10", "end_date": "2026-06-01"},
+    )
+    assert status == 400
+
+
+def test_second_trip_to_same_city_gets_distinct_id(server):
+    status, resp = post_json(server, "/trips", {"country": "Japan", "city": "Kyoto"})
+    assert status == 201
+    assert resp["trip"]["id"] == "kyoto-japan-2"
+
+
+# --- Trip page ----------------------------------------------------------------
+
+def test_trip_page_lists_only_its_tiktoks(server):
+    status, body = get(server, "/trip/tokyo-japan")
+    assert status == 200
+    trip = embedded(body, "TRIP")
+    tiktoks = embedded(body, "TIKTOKS")
+    assert trip["city"] == "Tokyo"
+    assert [t["video_summary"]["main_topic"] for t in tiktoks] == ["5 Ramen Shops Worth the Queue in Tokyo"]
+    assert all(t["trip_id"] == "tokyo-japan" for t in tiktoks)
+
+
+def test_unknown_trip_is_404(server):
+    status, _ = get(server, "/trip/atlantis-nowhere")
+    assert status == 404
+
+
+def test_add_page_carries_trip_context(server):
+    status, body = get(server, "/add?trip=tokyo-japan")
+    assert status == 200
+    assert embedded(body, "TRIP")["id"] == "tokyo-japan"
+
+    status, body = get(server, "/add")
+    assert status == 200
+    assert embedded(body, "TRIP") is None
+
+    status, _ = get(server, "/add?trip=nope")
+    assert status == 404
+
+
+# --- TikTok detail ------------------------------------------------------------
+
+def test_detail_page_shows_places_and_links_back_to_trip(server):
     status, body = get(server, "/tiktok/kyoto-7301122334455667788")
     assert status == 200
-    tiktok = embedded_data(body)
+    tiktok = embedded(body, "TIKTOK")
     assert tiktok["video_summary"]["main_topic"] == "Favorite Photo Locations in Kyoto"
     assert [p["name"] for p in tiktok["places"]][:2] == ["Kifune Shrine", "Kurama Temple"]
+    assert 'href="/trip/kyoto-japan"' in body
 
 
 def test_unknown_tiktok_is_404(server):
@@ -100,36 +241,45 @@ def test_unknown_path_is_404(server):
     assert status == 404
 
 
-def test_save_then_browse(server):
-    extraction = {
-        "video_summary": {
-            "main_topic": "Tapas Crawl in Seville",
-            "destination_city": "Seville",
-            "destination_country": "Spain",
-            "usefulness_for_itinerary": "high",
-            "overall_vibe": ["food"],
-            "summary": "Three tapas bars.",
-        },
-        "places": [{"name": "El Rinconcillo", "place_type": "bar", "confidence": "high"}],
-        "non_place_notes": [],
-        "needs_user_review": [],
-    }
+# --- Save ---------------------------------------------------------------------
+
+def test_save_into_trip(server):
+    status, resp = post_json(server, "/trips", {"country": "Spain", "city": "Seville"})
+    assert status == 201
+    trip_id = resp["trip"]["id"]
+
     status, saved = post_json(
-        server,
-        "/save",
-        {"url": "https://www.tiktok.com/@x/video/111222333", "result": extraction},
+        server, "/save",
+        {"url": "https://www.tiktok.com/@x/video/111222333", "result": SEVILLE, "trip_id": trip_id},
     )
     assert status == 200
-    assert saved == {"ok": True, "id": "seville-111222333", "city": "Seville", "country": "Spain"}
+    assert saved == {"ok": True, "id": "sevilla-111222333", "trip_id": trip_id, "city": "Sevilla", "country": "Spain"}
 
-    status, body = get(server, "/country/Spain")
-    assert status == 200
-    cities = {t["city"] for t in embedded_data(body)["tiktoks"] if t["country"] == "Spain"}
-    assert cities == {"Seville"}
+    status, body = get(server, f"/trip/{trip_id}")
+    assert [t["id"] for t in embedded(body, "TIKTOKS")] == ["sevilla-111222333"]
 
-    status, body = get(server, "/tiktok/seville-111222333")
+    status, body = get(server, "/tiktok/sevilla-111222333")
     assert status == 200
-    assert embedded_data(body)["status"] == "needs_review"
+    assert embedded(body, "TIKTOK")["status"] == "needs_review"
+
+
+def test_save_without_trip_files_under_extracted_city(server):
+    status, saved = post_json(
+        server, "/save", {"url": "https://www.tiktok.com/@x/video/444", "result": SEVILLE},
+    )
+    assert status == 200
+    assert saved["trip_id"] == "sevilla-spain"  # extraction's "Seville" canonicalised
+    status, body = get(server, "/")
+    assert any(t["id"] == "sevilla-spain" for t in embedded(body, "LIBRARY_DATA")["trips"])
+
+
+def test_save_rejects_unknown_trip(server):
+    status, resp = post_json(
+        server, "/save",
+        {"url": "https://www.tiktok.com/@x/video/555", "result": SEVILLE, "trip_id": "nope"},
+    )
+    assert status == 404
+    assert "error" in resp
 
 
 def test_save_requires_url_and_result(server):
@@ -139,14 +289,45 @@ def test_save_requires_url_and_result(server):
 
 
 def test_seed_file_is_not_modified_by_saves(server):
-    seed_before = open(os.path.join(ROOT, "data", "seed-library.json"), encoding="utf-8").read()
+    seed_path = os.path.join(ROOT, "data", "seed-library.json")
+    with open(seed_path, encoding="utf-8") as f:
+        seed_before = f.read()
     post_json(
-        server,
-        "/save",
+        server, "/save",
         {
             "url": "https://www.tiktok.com/@x/video/999",
             "result": {"video_summary": {"destination_city": "Oslo", "destination_country": "Norway"}},
         },
     )
-    seed_after = open(os.path.join(ROOT, "data", "seed-library.json"), encoding="utf-8").read()
-    assert seed_before == seed_after
+    with open(seed_path, encoding="utf-8") as f:
+        assert f.read() == seed_before
+
+
+# --- Migration ----------------------------------------------------------------
+
+def test_legacy_list_library_is_migrated_into_city_trips(library_file):
+    legacy_rows = [
+        {
+            "id": "tokyo-1", "url": "https://www.tiktok.com/@a/video/1", "author": "@a",
+            "city": "Tokyo", "country": "Japan", "status": "needs_review", "cover_path": None,
+            "data": {"video_summary": {"main_topic": "Tokyo eats"}, "places": []},
+            "transcript": "", "screen_text": "", "created_at": "2026-01-01T00:00:00+00:00", "reviewed_at": None,
+        },
+        {
+            "id": "kyoto-2", "url": "https://www.tiktok.com/@a/video/2", "author": "@a",
+            "city": "Kyoto", "country": "Japan", "status": "needs_review", "cover_path": None,
+            "data": {"video_summary": {"main_topic": "Kyoto walks"}, "places": []},
+            "transcript": "", "screen_text": "", "created_at": "2026-01-02T00:00:00+00:00", "reviewed_at": None,
+        },
+    ]
+    library_file.write_text(json.dumps(legacy_rows), encoding="utf-8")
+
+    from db import db_fetch_all
+
+    data = db_fetch_all()
+    assert {t["id"] for t in data["trips"]} == {"tokyo-japan", "kyoto-japan"}
+    assert {t["id"]: t["trip_id"] for t in data["tiktoks"]} == {"tokyo-1": "tokyo-japan", "kyoto-2": "kyoto-japan"}
+
+    on_disk = json.loads(library_file.read_text(encoding="utf-8"))
+    assert set(on_disk) == {"trips", "tiktoks"}
+    assert len(on_disk["trips"]) == 2

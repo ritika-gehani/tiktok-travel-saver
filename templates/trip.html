@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{CITY_NAME}} — Travel Saver</title>
+<style>
+{{BASE_CSS}}
+  .hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; margin-bottom: 28px; }
+  .hero .eyebrow { display: flex; align-items: center; gap: 8px; }
+  .hero .eyebrow .flag { font-size: 18px; }
+  .stats { display: flex; gap: 28px; flex-shrink: 0; padding-bottom: 6px; }
+  .stat { text-align: right; }
+  .stat b { display: block; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+  .stat span { font-size: 12px; color: var(--ink-3); }
+
+  /* Paste box */
+  .paste {
+    display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 18px; margin-bottom: 48px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow);
+    transition: box-shadow .15s, border-color .15s;
+  }
+  .paste:focus-within { border-color: var(--line-strong); box-shadow: var(--shadow-hover); }
+  .paste svg { width: 20px; height: 20px; color: var(--ink-3); flex-shrink: 0; }
+  .paste input { flex: 1; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--ink); min-width: 0; }
+  .paste input::placeholder { color: var(--ink-3); }
+  .paste .btn { padding: 11px 18px; border-radius: 11px; }
+  .paste-hint { font-size: 12px; color: var(--ink-3); margin: -40px 0 44px 18px; }
+
+  /* Saved TikToks */
+  .rows { display: flex; flex-direction: column; gap: 10px; margin-bottom: 48px; }
+  .row {
+    display: grid; grid-template-columns: 44px 1fr auto; gap: 16px; align-items: center;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px;
+    transition: transform .15s, box-shadow .15s, border-color .15s;
+  }
+  .row:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: #e2ded4; }
+  .row-icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; }
+  .row-topic { font-size: 15px; font-weight: 600; line-height: 1.35; }
+  .row-meta { margin-top: 4px; font-size: 12px; color: var(--ink-2); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row-meta .sep { color: var(--ink-3); }
+  .row-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; font-size: 12px; color: var(--ink-3); }
+  .status { font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 999px; }
+  .status.needs_review { background: var(--accent-soft); color: var(--accent); }
+  .status.reviewed { background: var(--ok-soft); color: var(--ok); }
+
+  .empty-card {
+    text-align: center; padding: 56px 24px; border: 1px dashed var(--line-strong); border-radius: 16px; color: var(--ink-3);
+    margin-bottom: 48px;
+  }
+  .empty-card strong { display: block; color: var(--ink); font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+
+  .places .chip { font-size: 13px; padding: 6px 12px; background: var(--surface); border: 1px solid var(--line); }
+  .places .chip small { color: var(--ink-3); margin-left: 6px; }
+
+  @media (max-width: 720px) {
+    .hero { flex-direction: column; align-items: flex-start; gap: 20px; }
+    .stats { gap: 20px; } .stat { text-align: left; }
+    .row { grid-template-columns: 1fr; }
+    .row-icon { display: none; }
+    .row-right { flex-direction: row; align-items: center; }
+  }
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <div class="crumbs"><a href="/" class="brand"><span class="brand-mark">🧭</span> Travel Saver</a><span>/</span><b id="crumbCity"></b></div>
+  <div class="topbar-actions">
+    <a href="/#new" class="btn">＋ Add another city</a>
+  </div>
+</nav>
+
+<main class="container">
+  <section class="hero">
+    <div>
+      <div class="eyebrow"><span class="flag" id="flag"></span><span id="subline"></span></div>
+      <h1 id="title"></h1>
+      <p class="lede" id="lede"></p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <form class="paste" id="pasteForm">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 4.93"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19.07"/></svg>
+    <input id="url" type="url" placeholder="Paste a TikTok link to save it here…" autocomplete="off" spellcheck="false">
+    <button type="submit" class="btn primary" id="pasteBtn"></button>
+  </form>
+  <p class="paste-hint">Videos, photo carousels and short links all work. We read the caption, audio and on-screen text, then pull out the places.</p>
+
+  <div class="section-head"><h2>Saved TikToks</h2><span id="rowCount"></span></div>
+  <div id="rows" class="rows"></div>
+
+  <section id="placesSection" class="hidden">
+    <div class="section-head"><h2>Places so far</h2><span id="placeCount"></span></div>
+    <div class="chips places" id="places"></div>
+  </section>
+</main>
+
+<script>
+const TRIP = {{TRIP_JSON}};
+const TIKTOKS = {{TIKTOKS_JSON}};
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const plural = (n, one, many) => n === 1 ? `1 ${one}` : `${n} ${many}`;
+const MODE_LABEL = { collect: 'Collect ideas', itinerary: 'Itinerary' };
+const ICONS = { food: '🍜', restaurant: '🍜', cafe: '☕', bar: '🍸', shrine: '⛩️', temple: '⛩️', landmark: '🏛️', neighborhood: '🏘️', park: '🌿', shop: '🛍️', museum: '🖼️', viewpoint: '🌄', beach: '🏖️', hotel: '🛏️', transit: '🚉' };
+const TINTS = ['#ffe4c7', '#d7ecff', '#e2f5d8', '#fde2ef', '#efe3ff', '#fff3c4', '#d9f4f1'];
+const hash = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+
+function fmtDates(start, end) {
+  if (!start && !end) return 'no dates yet';
+  const f = (d, withMonth = true) => {
+    const dt = new Date(d + 'T00:00:00');
+    return withMonth ? dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : dt.getDate();
+  };
+  if (start && end) return start.slice(0, 7) === end.slice(0, 7) ? `${f(start)}–${f(end, false)}` : `${f(start)} – ${f(end)}`;
+  return start ? `from ${f(start)}` : `until ${f(end)}`;
+}
+const fmtSaved = iso => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+
+function iconFor(t) {
+  const types = (t.places || []).map(p => (p.place_type || '').toLowerCase());
+  const key = Object.keys(ICONS).find(k => types.some(ty => ty.includes(k)));
+  return key ? ICONS[key] : '📍';
+}
+
+function row(t) {
+  const topic = (t.video_summary && t.video_summary.main_topic) || 'Untitled TikTok';
+  const author = (t.author || '').replace(/^@+/, '');
+  const places = (t.places || []).length;
+  const review = (t.needs_user_review || []).length;
+  const status = t.status === 'needs_review' ? 'Needs review' : 'Reviewed';
+  return `<a href="/tiktok/${encodeURIComponent(t.id)}" class="row">
+    <div class="row-icon" style="background:${TINTS[hash(t.id) % TINTS.length]}">${iconFor(t)}</div>
+    <div>
+      <div class="row-topic">${esc(topic)}</div>
+      <div class="row-meta">
+        ${author ? `<span>@${esc(author)}</span><span class="sep">·</span>` : ''}
+        <span>${plural(places, 'place', 'places')}</span>
+        ${review ? `<span class="sep">·</span><span>${plural(review, 'open question', 'open questions')}</span>` : ''}
+      </div>
+    </div>
+    <div class="row-right"><span class="status ${esc(t.status)}">${status}</span><span>${fmtSaved(t.created_at)}</span></div>
+  </a>`;
+}
+
+function render() {
+  document.title = `${TRIP.city} — Travel Saver`;
+  document.getElementById('crumbCity').textContent = TRIP.city;
+  document.getElementById('flag').textContent = TRIP.flag || '🌍';
+  document.getElementById('subline').textContent = `${TRIP.country} · ${fmtDates(TRIP.start_date, TRIP.end_date)} · ${MODE_LABEL[TRIP.planning_mode] || 'Collect ideas'}`;
+  document.getElementById('title').textContent = TRIP.city;
+  document.getElementById('pasteBtn').textContent = `Save to ${TRIP.city}`;
+
+  const places = TIKTOKS.reduce((n, t) => n + (t.places || []).length, 0);
+  const review = TIKTOKS.filter(t => t.status === 'needs_review').length;
+  document.getElementById('lede').textContent = TIKTOKS.length
+    ? `Everything you've saved for ${TRIP.city}, in one place. Open a TikTok to see what we found in it.`
+    : `Paste the TikToks you saved for ${TRIP.city} and we'll pull out the places worth remembering.`;
+  document.getElementById('stats').innerHTML = [
+    [TIKTOKS.length, 'TikToks'], [places, 'places'], [review, 'to review'],
+  ].map(([n, l]) => `<div class="stat"><b>${n}</b><span>${l}</span></div>`).join('');
+
+  document.getElementById('rowCount').textContent = TIKTOKS.length ? 'Newest first' : '';
+  document.getElementById('rows').innerHTML = TIKTOKS.length
+    ? TIKTOKS.map(row).join('')
+    : `<div class="empty-card"><strong>Nothing here yet</strong>Paste your first TikTok above to get started.</div>`;
+
+  const seen = new Map();
+  for (const t of TIKTOKS) for (const p of (t.places || [])) {
+    if (!p.name) continue;
+    const key = p.name.toLowerCase();
+    if (!seen.has(key)) seen.set(key, { name: p.name, type: p.place_type || '' });
+  }
+  const list = [...seen.values()];
+  document.getElementById('placesSection').classList.toggle('hidden', list.length === 0);
+  document.getElementById('placeCount').textContent = plural(list.length, 'place', 'places');
+  document.getElementById('places').innerHTML = list.map(p => `<span class="chip">${esc(p.name)}${p.type ? `<small>${esc(p.type)}</small>` : ''}</span>`).join('');
+}
+
+document.getElementById('pasteForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const url = document.getElementById('url').value.trim();
+  const params = new URLSearchParams({ trip: TRIP.id });
+  if (url) params.set('url', url);
+  window.location.href = '/add?' + params;
+});
+
+render();
+</script>
+</body>
+</html>

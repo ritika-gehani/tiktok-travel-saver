@@ -5,56 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Travel Saver</title>
 <style>
-  :root {
-    --bg: #fbfaf7;
-    --surface: #ffffff;
-    --ink: #2f2e2b;
-    --ink-2: #6f6c66;
-    --ink-3: #a19d95;
-    --line: #ebe8e1;
-    --accent: #e5533d;
-    --accent-soft: #fdece8;
-    --shadow: 0 1px 2px rgba(60, 50, 30, 0.04), 0 8px 24px -12px rgba(60, 50, 30, 0.18);
-    --shadow-hover: 0 2px 4px rgba(60, 50, 30, 0.05), 0 18px 36px -14px rgba(60, 50, 30, 0.28);
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
-    background: var(--bg); color: var(--ink); min-height: 100vh;
-    -webkit-font-smoothing: antialiased;
-  }
-  a { color: inherit; text-decoration: none; }
-  button { font: inherit; }
-
-  /* Top bar */
-  .topbar {
-    position: sticky; top: 0; z-index: 10;
-    display: flex; align-items: center; justify-content: space-between; gap: 16px;
-    padding: 14px 32px; background: rgba(251, 250, 247, 0.85); backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--line);
-  }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
-  .brand-mark {
-    width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
-    background: linear-gradient(135deg, #ffd9a8, #ffb0a0); font-size: 15px;
-  }
-  .topbar-actions { display: flex; align-items: center; gap: 8px; }
-  .btn {
-    display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px;
-    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
-    font-size: 14px; font-weight: 500; cursor: pointer; transition: background .15s, transform .15s, box-shadow .15s;
-  }
-  .btn:hover { background: #f5f3ee; }
-  .btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
-  .btn.primary:hover { background: #111; transform: translateY(-1px); box-shadow: var(--shadow); }
-
+{{BASE_CSS}}
   /* Hero */
-  .container { max-width: 1040px; margin: 0 auto; padding: 56px 32px 96px; }
   .hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; margin-bottom: 36px; }
-  .eyebrow { font-size: 13px; color: var(--ink-3); letter-spacing: .02em; margin-bottom: 10px; }
-  h1 { font-size: 40px; line-height: 1.1; letter-spacing: -0.02em; font-weight: 700; }
-  .lede { margin-top: 12px; color: var(--ink-2); font-size: 16px; max-width: 480px; line-height: 1.5; }
   .stats { display: flex; gap: 28px; flex-shrink: 0; padding-bottom: 6px; }
   .stat { text-align: right; }
   .stat b { display: block; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
@@ -66,7 +19,7 @@
     background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
     transition: box-shadow .15s, border-color .15s;
   }
-  .search:focus-within { border-color: #d9d5cb; box-shadow: var(--shadow-hover); }
+  .search:focus-within { border-color: var(--line-strong); box-shadow: var(--shadow-hover); }
   .search svg { width: 18px; height: 18px; color: var(--ink-3); flex-shrink: 0; }
   .search input { flex: 1; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--ink); }
   .search input::placeholder { color: var(--ink-3); }
@@ -75,35 +28,32 @@
     border-radius: 5px; padding: 4px 6px; background: #faf8f3;
   }
 
-  /* Sections */
-  .section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
-  .section-head h2 { font-size: 18px; font-weight: 600; }
-  .section-head span { font-size: 13px; color: var(--ink-3); }
-
-  /* Trip blocks */
-  .trip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-bottom: 56px; }
+  /* Trip cards — one per city */
+  .trip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-bottom: 56px; }
   .trip {
     background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
     box-shadow: var(--shadow); display: flex; flex-direction: column;
     transition: transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .2s, border-color .2s;
   }
   .trip:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); border-color: #e2ded4; }
-  .trip-cover { height: 120px; position: relative; display: flex; align-items: flex-end; padding: 14px 18px; }
-  .trip-cover .flag { font-size: 44px; line-height: 1; filter: drop-shadow(0 4px 8px rgba(0,0,0,.12)); }
+  .trip-cover { height: 112px; position: relative; display: flex; align-items: flex-end; padding: 14px 18px; }
+  .trip-cover .flag { font-size: 40px; line-height: 1; filter: drop-shadow(0 4px 8px rgba(0,0,0,.12)); }
   .trip-cover .review-pill {
     position: absolute; top: 12px; right: 12px; font-size: 11px; font-weight: 600;
-    background: rgba(255,255,255,.85); color: var(--accent); border-radius: 999px; padding: 4px 9px;
+    background: rgba(255,255,255,.88); color: var(--accent); border-radius: 999px; padding: 4px 9px;
+  }
+  .trip-cover .mode-pill {
+    position: absolute; top: 12px; left: 12px; font-size: 11px; font-weight: 500;
+    background: rgba(255,255,255,.7); color: var(--ink-2); border-radius: 999px; padding: 4px 9px;
   }
   .trip-body { padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
-  .trip-title { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  .trip-title { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
   .trip-sub { font-size: 13px; color: var(--ink-2); }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { font-size: 12px; padding: 4px 9px; border-radius: 999px; background: #f4f2ec; color: var(--ink-2); }
   .trip-foot { margin-top: auto; padding-top: 10px; border-top: 1px dashed var(--line); display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-3); }
   .trip-foot b { color: var(--ink); font-weight: 600; }
   .trip.add {
     border-style: dashed; background: transparent; box-shadow: none; align-items: center; justify-content: center;
-    min-height: 200px; color: var(--ink-3); gap: 10px; text-align: center; padding: 24px;
+    min-height: 200px; color: var(--ink-3); gap: 10px; text-align: center; padding: 24px; cursor: pointer;
   }
   .trip.add:hover { background: var(--surface); color: var(--ink); }
   .trip.add .plus { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-size: 26px; background: var(--accent-soft); color: var(--accent); }
@@ -122,15 +72,42 @@
   .save-meta { font-size: 12px; color: var(--ink-2); display: flex; gap: 8px; align-items: center; }
   .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; }
 
-  .empty { text-align: center; padding: 60px 20px; color: var(--ink-3); font-size: 15px; }
-  .hidden { display: none !important; }
+  /* Create-trip sheet */
+  .form-grid { display: grid; gap: 16px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .typeahead { position: relative; }
+  .typeahead input.picked { border-color: var(--line-strong); background: #fffdf9; }
+  .typeahead .picked-flag { position: absolute; right: 12px; top: 34px; font-size: 16px; pointer-events: none; }
+  .menu {
+    position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 5; max-height: 232px; overflow-y: auto;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-hover); padding: 6px;
+  }
+  .menu-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-radius: 8px;
+    font-size: 14px; cursor: pointer;
+  }
+  .menu-item:hover, .menu-item.active { background: var(--surface-2); }
+  .menu-item .meta { font-size: 12px; color: var(--ink-3); }
+  .menu-item mark { background: none; color: inherit; font-weight: 600; }
+  .menu-empty { padding: 12px 12px 10px; }
+  .menu-empty b { display: block; font-size: 14px; font-weight: 600; }
+  .menu-empty span { display: block; margin-top: 3px; font-size: 12px; color: var(--ink-3); }
+  .hint { font-size: 12px; color: var(--ink-3); }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; background: var(--surface-2); border-radius: 10px; }
+  .seg button {
+    border: 0; background: transparent; border-radius: 7px; padding: 8px 10px; font-size: 13px; color: var(--ink-2); cursor: pointer;
+    transition: background .15s, color .15s, box-shadow .15s;
+  }
+  .seg button.on { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: var(--shadow); }
+  .seg small { display: block; font-size: 11px; color: var(--ink-3); margin-top: 2px; font-weight: 400; }
+  .form-error { font-size: 13px; color: var(--accent); min-height: 18px; }
+  .form-note { font-size: 13px; color: var(--ink-2); padding: 10px 14px; background: var(--surface-2); border-radius: 10px; }
+  .form-note a { color: var(--ink); font-weight: 500; border-bottom: 1px solid var(--line-strong); }
 
   @media (max-width: 720px) {
-    .container { padding: 36px 20px 72px; }
     .hero { flex-direction: column; align-items: flex-start; gap: 20px; }
     .stats { gap: 20px; } .stat { text-align: left; }
-    h1 { font-size: 32px; }
-    .topbar { padding: 12px 20px; }
+    .form-row { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -138,7 +115,7 @@
 <nav class="topbar">
   <a href="/" class="brand"><span class="brand-mark">🧭</span> Travel Saver</a>
   <div class="topbar-actions">
-    <a href="/add" class="btn primary">＋ Save a TikTok</a>
+    <button class="btn primary" id="newTripBtn" type="button">＋ Create trip</button>
   </div>
 </nav>
 
@@ -147,14 +124,14 @@
     <div>
       <div class="eyebrow" id="greeting">Your trips</div>
       <h1>Where to next?</h1>
-      <p class="lede">Every TikTok you saved, sorted into trips. Open a country to see the cities, places and tips you've collected.</p>
+      <p class="lede">One trip per city. Paste the TikToks you saved into a trip and we pull out the places, food and tips worth remembering.</p>
     </div>
     <div class="stats" id="stats"></div>
   </section>
 
   <label class="search">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-    <input id="search" type="search" placeholder="Search trips, cities, places…" autocomplete="off">
+    <input id="search" type="search" placeholder="Search cities, countries, places…" autocomplete="off">
     <kbd>/</kbd>
   </label>
 
@@ -168,20 +145,57 @@
   </section>
 </main>
 
+<div class="sheet-backdrop hidden" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <form class="sheet" id="tripForm" autocomplete="off" novalidate>
+    <div class="sheet-head">
+      <div>
+        <h2 id="sheetTitle">New trip</h2>
+        <p>One city per trip. Going to a second city? Create another trip for it.</p>
+      </div>
+      <button type="button" class="sheet-close" id="sheetClose" aria-label="Close">✕</button>
+    </div>
+
+    <div class="form-grid">
+      <div class="field typeahead" id="countryField">
+        <label for="country">Country</label>
+        <input id="country" type="text" placeholder="Start typing a country…" autocapitalize="words" spellcheck="false">
+        <span class="picked-flag" id="countryFlag"></span>
+        <div class="menu hidden" id="countryMenu" role="listbox"></div>
+      </div>
+
+      <div class="field typeahead" id="cityField">
+        <label for="city">City</label>
+        <input id="city" type="text" placeholder="Pick a country first" disabled autocapitalize="words" spellcheck="false">
+        <div class="menu hidden" id="cityMenu" role="listbox"></div>
+      </div>
+
+      <div class="form-row">
+        <div class="field"><label for="startDate">From <span class="hint">(optional)</span></label><input id="startDate" type="date"></div>
+        <div class="field"><label for="endDate">To <span class="hint">(optional)</span></label><input id="endDate" type="date"></div>
+      </div>
+
+      <div class="field">
+        <label>How do you want to plan?</label>
+        <div class="seg" id="modeSeg">
+          <button type="button" class="on" data-mode="collect">Collect ideas<small>Places, food and tips — no schedule</small></button>
+          <button type="button" data-mode="itinerary">Itinerary<small>Day-by-day plan (coming later)</small></button>
+        </div>
+      </div>
+
+      <div class="form-note hidden" id="dupNote"></div>
+      <div class="form-error" id="formError"></div>
+    </div>
+
+    <div class="sheet-foot">
+      <button type="button" class="btn quiet" id="sheetCancel">Cancel</button>
+      <button type="submit" class="btn primary" id="createBtn" disabled>Create trip</button>
+    </div>
+  </form>
+</div>
+
 <script>
 const LIBRARY_DATA = {{DATA_JSON}};
 
-const FLAGS = {
-  'Japan':'🇯🇵','Portugal':'🇵🇹','Mexico':'🇲🇽','Spain':'🇪🇸','Italy':'🇮🇹','France':'🇫🇷','Greece':'🇬🇷',
-  'Thailand':'🇹🇭','Vietnam':'🇻🇳','Indonesia':'🇮🇩','South Korea':'🇰🇷','Korea':'🇰🇷','Taiwan':'🇹🇼',
-  'United States':'🇺🇸','USA':'🇺🇸','United Kingdom':'🇬🇧','UK':'🇬🇧','Ireland':'🇮🇪','Germany':'🇩🇪',
-  'Netherlands':'🇳🇱','Switzerland':'🇨🇭','Austria':'🇦🇹','Czech Republic':'🇨🇿','Czechia':'🇨🇿','Croatia':'🇭🇷',
-  'Turkey':'🇹🇷','Türkiye':'🇹🇷','Morocco':'🇲🇦','Egypt':'🇪🇬','South Africa':'🇿🇦','Kenya':'🇰🇪',
-  'India':'🇮🇳','Sri Lanka':'🇱🇰','Nepal':'🇳🇵','Australia':'🇦🇺','New Zealand':'🇳🇿','Canada':'🇨🇦',
-  'Brazil':'🇧🇷','Argentina':'🇦🇷','Peru':'🇵🇪','Colombia':'🇨🇴','Chile':'🇨🇱','Costa Rica':'🇨🇷',
-  'Iceland':'🇮🇸','Norway':'🇳🇴','Sweden':'🇸🇪','Denmark':'🇩🇰','Finland':'🇫🇮','Singapore':'🇸🇬',
-  'Malaysia':'🇲🇾','Philippines':'🇵🇭','China':'🇨🇳','Hong Kong':'🇭🇰','United Arab Emirates':'🇦🇪','UAE':'🇦🇪',
-};
 const COVERS = [
   'linear-gradient(135deg,#ffe4c7,#ffb99a)',
   'linear-gradient(135deg,#d7ecff,#a9c9ff)',
@@ -194,71 +208,78 @@ const COVERS = [
 const hash = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const plural = (n, one, many) => n === 1 ? `1 ${one}` : `${n} ${many}`;
+const MODE_LABEL = { collect: 'Collect ideas', itinerary: 'Itinerary' };
 
-function groupTrips(tiktoks) {
-  const groups = {};
-  for (const t of tiktoks) {
-    const g = groups[t.country] ??= { country: t.country, cities: new Map(), saves: 0, places: 0, review: 0, latest: '' };
-    g.cities.set(t.city, (g.cities.get(t.city) || 0) + 1);
-    g.saves++;
-    g.places += (t.places || []).length;
-    if (t.status === 'needs_review') g.review++;
-    if ((t.created_at || '') > g.latest) g.latest = t.created_at || '';
+function fmtDates(start, end) {
+  if (!start && !end) return 'no dates yet';
+  const f = (d, withMonth = true) => {
+    const dt = new Date(d + 'T00:00:00');
+    return withMonth ? dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : dt.getDate();
+  };
+  if (start && end) {
+    const sameMonth = start.slice(0, 7) === end.slice(0, 7);
+    return sameMonth ? `${f(start)}–${f(end, false)}` : `${f(start)} – ${f(end)}`;
   }
-  return Object.values(groups).sort((a, b) => b.latest.localeCompare(a.latest));
+  return start ? `from ${f(start)}` : `until ${f(end)}`;
 }
 
-function tripCard(g) {
-  const url = '/country/' + encodeURIComponent(g.country);
-  const cities = [...g.cities.keys()];
-  const shown = cities.slice(0, 4);
-  const more = cities.length - shown.length;
-  return `<a href="${url}" class="trip" data-search="${esc((g.country + ' ' + cities.join(' ')).toLowerCase())}">
-    <div class="trip-cover" style="background:${COVERS[hash(g.country) % COVERS.length]}">
-      <span class="flag">${FLAGS[g.country] || '🌍'}</span>
-      ${g.review ? `<span class="review-pill">${plural(g.review, 'to review', 'to review')}</span>` : ''}
+function tripCard(trip, tiktoks) {
+  const mine = tiktoks.filter(t => t.trip_id === trip.id);
+  const places = mine.reduce((n, t) => n + (t.places || []).length, 0);
+  const review = mine.filter(t => t.status === 'needs_review').length;
+  const placeNames = mine.flatMap(t => (t.places || []).map(p => p.name)).join(' ');
+  return `<a href="/trip/${encodeURIComponent(trip.id)}" class="trip" data-search="${esc((trip.city + ' ' + trip.country + ' ' + placeNames).toLowerCase())}">
+    <div class="trip-cover" style="background:${COVERS[hash(trip.id) % COVERS.length]}">
+      <span class="mode-pill">${MODE_LABEL[trip.planning_mode] || 'Collect ideas'}</span>
+      <span class="flag">${trip.flag || '🌍'}</span>
+      ${review ? `<span class="review-pill">${review} to review</span>` : ''}
     </div>
     <div class="trip-body">
-      <div class="trip-title">${esc(g.country)}</div>
-      <div class="trip-sub">${plural(cities.length, 'city', 'cities')} · ${plural(g.saves, 'TikTok', 'TikToks')}</div>
-      <div class="chips">${shown.map(c => `<span class="chip">${esc(c)}</span>`).join('')}${more > 0 ? `<span class="chip">+${more}</span>` : ''}</div>
-      <div class="trip-foot"><span><b>${g.places}</b> places</span><span>Open trip →</span></div>
+      <div class="trip-title">${esc(trip.city)}</div>
+      <div class="trip-sub">${esc(trip.country)} · ${fmtDates(trip.start_date, trip.end_date)}</div>
+      <div class="trip-foot"><span><b>${mine.length}</b> ${mine.length === 1 ? 'TikTok' : 'TikToks'} · <b>${places}</b> places</span><span>Open →</span></div>
     </div>
   </a>`;
 }
 
-function saveCard(t) {
+function saveCard(t, tripsById) {
   const topic = (t.video_summary && t.video_summary.main_topic) || 'Untitled TikTok';
   const places = (t.places || []).length;
   const author = (t.author || '').replace(/^@+/, '');
+  const trip = tripsById[t.trip_id];
   return `<a href="/tiktok/${encodeURIComponent(t.id)}" class="save" data-search="${esc((topic + ' ' + t.city + ' ' + t.country + ' ' + (t.places || []).map(p => p.name).join(' ')).toLowerCase())}">
-    <div class="save-where">${FLAGS[t.country] || '🌍'} ${esc(t.city)}, ${esc(t.country)}</div>
+    <div class="save-where">${trip ? trip.flag : '🌍'} ${esc(t.city)}, ${esc(t.country)}</div>
     <div class="save-topic">${esc(topic)}</div>
     <div class="save-meta">${author ? `@${esc(author)}` : ''} ${author && places ? '<span class="dot"></span>' : ''} ${places ? plural(places, 'place', 'places') : ''}</div>
   </a>`;
 }
 
 function render() {
+  const trips = LIBRARY_DATA.trips || [];
   const tiktoks = LIBRARY_DATA.tiktoks || [];
-  const trips = groupTrips(tiktoks);
-  const cities = new Set(tiktoks.map(t => t.city)).size;
+  const tripsById = Object.fromEntries(trips.map(t => [t.id, t]));
   const places = tiktoks.reduce((n, t) => n + (t.places || []).length, 0);
+  const review = tiktoks.filter(t => t.status === 'needs_review').length;
 
   const hour = new Date().getHours();
   document.getElementById('greeting').textContent =
     hour < 12 ? 'Good morning ☀️' : hour < 18 ? 'Good afternoon 🌤' : 'Good evening 🌙';
 
   document.getElementById('stats').innerHTML = [
-    [trips.length, 'trips'], [cities, 'cities'], [tiktoks.length, 'saves'], [places, 'places'],
+    [trips.length, 'trips'], [tiktoks.length, 'TikToks'], [places, 'places'], [review, 'to review'],
   ].map(([n, l]) => `<div class="stat"><b>${n}</b><span>${l}</span></div>`).join('');
 
-  document.getElementById('tripCount').textContent = plural(trips.length, 'country', 'countries');
-  document.getElementById('tripGrid').innerHTML = trips.map(tripCard).join('') +
-    `<a href="/add" class="trip add" data-search=""><span class="plus">＋</span><strong>Start a new trip</strong><small>Paste a TikTok and we'll file it under its city.</small></a>`;
+  document.getElementById('tripCount').textContent = plural(trips.length, 'city', 'cities');
+  document.getElementById('tripGrid').innerHTML = trips.map(t => tripCard(t, tiktoks)).join('') +
+    `<div class="trip add" data-search="" role="button" tabindex="0" id="addCard"><span class="plus">＋</span><strong>${trips.length ? 'Add another city' : 'Create your first trip'}</strong><small>Pick a country and a city, then start pasting TikToks.</small></div>`;
 
   const recent = [...tiktoks].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')).slice(0, 6);
-  document.getElementById('recent').innerHTML = recent.map(saveCard).join('');
+  document.getElementById('recent').innerHTML = recent.map(t => saveCard(t, tripsById)).join('');
   document.getElementById('recentSection').classList.toggle('hidden', recent.length === 0);
+
+  const addCard = document.getElementById('addCard');
+  addCard.addEventListener('click', openSheet);
+  addCard.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSheet(); } });
 }
 
 function applySearch(q) {
@@ -271,17 +292,183 @@ function applySearch(q) {
     if (show && !isAdd && el.classList.contains('trip')) visible++;
   }
   document.getElementById('emptyState').classList.toggle('hidden', !q || visible > 0);
-  document.getElementById('tripCount').textContent = plural(visible, 'country', 'countries');
+  document.getElementById('tripCount').textContent = plural(visible, 'city', 'cities');
   document.getElementById('recentSection').classList.toggle('hidden', !!q && !document.querySelector('.save:not(.hidden)'));
 }
+
+/* ---- Typeahead ------------------------------------------------------- */
+
+function highlight(label, q) {
+  if (!q) return esc(label);
+  const i = label.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return esc(label);
+  return esc(label.slice(0, i)) + '<mark>' + esc(label.slice(i, i + q.length)) + '</mark>' + esc(label.slice(i + q.length));
+}
+
+function typeahead(input, menu, { fetchItems, onPick, onClear, notFound, minChars = 0 }) {
+  let items = [], active = -1, picked = null, timer = null, seq = 0;
+
+  const close = () => { menu.classList.add('hidden'); menu.innerHTML = ''; active = -1; };
+  const draw = q => {
+    menu.classList.remove('hidden');
+    if (!items.length) {
+      const nf = notFound(q);
+      menu.innerHTML = `<div class="menu-empty"><b>${esc(nf.title)}</b><span>${esc(nf.hint)}</span></div>`;
+      return;
+    }
+    menu.innerHTML = items.map((it, i) =>
+      `<div class="menu-item${i === active ? ' active' : ''}" role="option" data-i="${i}">
+         <span>${highlight(it.label, q)}</span>${it.meta ? `<span class="meta">${esc(it.meta)}</span>` : ''}
+       </div>`).join('');
+  };
+  const pick = it => {
+    picked = it; input.value = it.label; input.classList.add('picked'); close(); onPick(it);
+  };
+  const search = () => {
+    const q = input.value.trim();
+    if (q.length < minChars) { close(); return; }
+    const mine = ++seq;
+    fetchItems(q).then(res => {
+      if (mine !== seq || document.activeElement !== input) return;
+      items = res; active = items.length ? 0 : -1; draw(q);
+    });
+  };
+
+  input.addEventListener('input', () => {
+    if (picked) { picked = null; input.classList.remove('picked'); onClear(); }
+    clearTimeout(timer); timer = setTimeout(search, 120);
+  });
+  input.addEventListener('focus', () => { if (!picked) search(); });
+  input.addEventListener('blur', () => setTimeout(close, 120));
+  input.addEventListener('keydown', e => {
+    if (menu.classList.contains('hidden')) { if (e.key === 'ArrowDown') search(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, items.length - 1); draw(input.value.trim()); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); draw(input.value.trim()); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (items[active]) pick(items[active]); }
+    else if (e.key === 'Escape') { e.stopPropagation(); close(); }
+  });
+  menu.addEventListener('mousedown', e => {
+    const el = e.target.closest('.menu-item');
+    if (el) { e.preventDefault(); pick(items[+el.dataset.i]); }
+  });
+
+  return {
+    get value() { return picked; },
+    reset() { picked = null; items = []; input.value = ''; input.classList.remove('picked'); close(); },
+  };
+}
+
+/* ---- Create-trip sheet ---------------------------------------------- */
+
+const sheet = document.getElementById('sheet');
+const countryInput = document.getElementById('country');
+const cityInput = document.getElementById('city');
+const createBtn = document.getElementById('createBtn');
+const formError = document.getElementById('formError');
+const dupNote = document.getElementById('dupNote');
+let planningMode = 'collect';
+
+function showDuplicateNote(city) {
+  const existing = LIBRARY_DATA.trips.find(t => t.city === city && t.country === countryTA.value.label);
+  dupNote.classList.toggle('hidden', !existing);
+  createBtn.textContent = existing ? `Create another ${city} trip` : 'Create trip';
+  if (existing) dupNote.innerHTML = `You already have a ${esc(city)} trip. <a href="/trip/${encodeURIComponent(existing.id)}">Open it →</a>`;
+}
+let opener = null;
+
+const api = (params) => fetch('/api/destinations?' + new URLSearchParams(params)).then(r => r.ok ? r.json() : { countries: [], cities: [] });
+
+const cityTA = typeahead(cityInput, document.getElementById('cityMenu'), {
+  fetchItems: q => api({ country: countryTA.value.label, q }).then(d => (d.cities || []).map(c => ({ label: c }))),
+  onPick: it => { createBtn.disabled = false; formError.textContent = ''; showDuplicateNote(it.label); },
+  onClear: () => { createBtn.disabled = true; dupNote.classList.add('hidden'); createBtn.textContent = 'Create trip'; },
+  notFound: q => ({
+    title: q ? `No city named “${q}” in ${countryTA.value.label}` : `No cities found for ${countryTA.value.label}`,
+    hint: 'Check the spelling or pick from the list.',
+  }),
+});
+
+const countryTA = typeahead(countryInput, document.getElementById('countryMenu'), {
+  fetchItems: q => api({ q }).then(d => (d.countries || []).map(c => ({ label: c.name, meta: c.flag, code: c.code }))),
+  onPick: it => {
+    document.getElementById('countryFlag').textContent = it.meta;
+    cityTA.reset(); cityInput.disabled = false; cityInput.placeholder = `Which city in ${it.label}?`;
+    createBtn.disabled = true; formError.textContent = '';
+    cityInput.focus();
+  },
+  onClear: () => {
+    document.getElementById('countryFlag').textContent = '';
+    cityTA.reset(); cityInput.disabled = true; cityInput.placeholder = 'Pick a country first'; createBtn.disabled = true;
+  },
+  notFound: q => ({ title: `No country named “${q}”`, hint: 'Check the spelling or pick from the list.' }),
+});
+
+function openSheet() {
+  opener = document.activeElement;
+  sheet.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => countryInput.focus(), 30);
+}
+function closeSheet() {
+  sheet.classList.add('hidden');
+  document.body.style.overflow = '';
+  document.getElementById('tripForm').reset();
+  countryTA.reset(); cityTA.reset();
+  document.getElementById('countryFlag').textContent = '';
+  cityInput.disabled = true; cityInput.placeholder = 'Pick a country first';
+  createBtn.disabled = true; createBtn.textContent = 'Create trip'; formError.textContent = ''; dupNote.classList.add('hidden');
+  setMode('collect');
+  if (opener && opener.focus) opener.focus();
+  if (location.hash === '#new') history.replaceState(null, '', location.pathname);
+}
+function setMode(mode) {
+  planningMode = mode;
+  for (const b of document.querySelectorAll('#modeSeg button')) b.classList.toggle('on', b.dataset.mode === mode);
+}
+
+document.getElementById('newTripBtn').addEventListener('click', openSheet);
+document.getElementById('sheetClose').addEventListener('click', closeSheet);
+document.getElementById('sheetCancel').addEventListener('click', closeSheet);
+sheet.addEventListener('mousedown', e => { if (e.target === sheet) closeSheet(); });
+document.getElementById('modeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (b) setMode(b.dataset.mode);
+});
+
+document.getElementById('tripForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!countryTA.value || !cityTA.value) return;
+  const start = document.getElementById('startDate').value;
+  const end = document.getElementById('endDate').value;
+  if (start && end && end < start) { formError.textContent = 'The end date is before the start date.'; return; }
+  createBtn.disabled = true; createBtn.textContent = 'Creating…'; formError.textContent = '';
+  fetch('/trips', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ country: countryTA.value.label, city: cityTA.value.label, start_date: start, end_date: end, planning_mode: planningMode }),
+  }).then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok && data.trip) { window.location.href = '/trip/' + encodeURIComponent(data.trip.id); return; }
+      formError.textContent = data.message || data.error || 'Something went wrong.';
+      createBtn.disabled = false; createBtn.textContent = 'Create trip';
+    })
+    .catch(() => { formError.textContent = 'Could not reach the server.'; createBtn.disabled = false; createBtn.textContent = 'Create trip'; });
+});
+
+/* ---- Global keys ------------------------------------------------------ */
 
 const searchEl = document.getElementById('search');
 searchEl.addEventListener('input', e => applySearch(e.target.value));
 document.addEventListener('keydown', e => {
-  if (e.key === '/' && document.activeElement !== searchEl) { e.preventDefault(); searchEl.focus(); }
+  const sheetOpen = !sheet.classList.contains('hidden');
+  if (e.key === 'Escape' && sheetOpen) { closeSheet(); return; }
+  if (sheetOpen) return;
+  const typing = ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
+  if (e.key === '/' && !typing) { e.preventDefault(); searchEl.focus(); }
   if (e.key === 'Escape' && document.activeElement === searchEl) { searchEl.value = ''; applySearch(''); searchEl.blur(); }
+  if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !typing) { e.preventDefault(); openSheet(); }
 });
+
 render();
+if (location.hash === '#new') openSheet();
 </script>
 </body>
 </html>
