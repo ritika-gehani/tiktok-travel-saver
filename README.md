@@ -153,7 +153,8 @@ tiktok-travel-saver/
 │   └── add.html               # New TikTok extraction form
 ├── prompt-extract-places.txt  # AI prompt for place extraction
 ├── final-extraction.json      # Output from last CLI run
-├── PRODUCT_PLAN.md            # Product vision & roadmap
+├── PRD.md                     # V1 product requirements and user experience
+├── PRODUCT_PLAN.md            # Earlier implementation plan and roadmap
 ├── Makefile                   # install / install-extraction / test / run
 ├── requirements.txt           # Core deps; requirements-extraction.txt adds the pipeline deps
 ├── .env                       # API keys + Supabase creds (not committed)
@@ -167,3 +168,5 @@ tiktok-travel-saver/
 ## Technical Documentation
 
 For a deep dive into how everything works — the pipeline architecture, scraping approach, output schema, and more — see **[TECHNICAL.md](TECHNICAL.md)**.
+
+For the Version 1 product definition, target user journey, scope, and design principles, see **[PRD.md](PRD.md)**.
