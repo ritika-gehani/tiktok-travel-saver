@@ -236,6 +236,24 @@ def test_unknown_tiktok_is_404(server):
     assert status == 404
 
 
+# --- Labels -------------------------------------------------------------------
+
+def test_pages_embed_the_controlled_label_vocabulary(server):
+    for path in ("/trip/tokyo-japan", "/tiktok/kyoto-7301122334455667788", "/add?trip=tokyo-japan"):
+        status, body = get(server, path)
+        assert status == 200, path
+        labels = embedded(body, "LABELS")
+        assert {t["key"] for t in labels["place_types"]} >= {"food", "sight", "other"}
+        assert all(set(item) == {"key", "label", "help"} for group in labels.values() for item in group)
+
+
+def test_how_it_works_page(server):
+    status, body = get(server, "/how-it-works")
+    assert status == 200
+    assert "What the labels mean" in body
+    assert embedded(body, "LABELS")["confidence"][0]["key"] == "high"
+
+
 def test_unknown_path_is_404(server):
     status, _ = get(server, "/nope")
     assert status == 404
@@ -261,6 +279,23 @@ def test_save_into_trip(server):
     status, body = get(server, "/tiktok/sevilla-111222333")
     assert status == 200
     assert embedded(body, "TIKTOK")["status"] == "needs_review"
+
+
+def test_save_snaps_free_text_labels_to_the_controlled_set(server, library_file):
+    result = json.loads(json.dumps(SEVILLE))
+    result["video_summary"]["overall_vibe"] = ["street food", "late night", "made-up-label"]
+    result["places"][0].update({"place_type": "tapas restaurant", "confidence": "certain", "best_for": ["dinner"]})
+    status, saved = post_json(
+        server, "/save",
+        {"url": "https://www.tiktok.com/@x/video/999", "result": result, "trip_id": "tokyo-japan"},
+    )
+    assert status == 200
+
+    stored = next(t for t in json.loads(library_file.read_text())["tiktoks"] if t["id"] == saved["id"])
+    assert stored["data"]["video_summary"]["overall_vibe"] == ["food", "nightlife"]
+    assert stored["data"]["places"][0]["place_type"] == "food"
+    assert stored["data"]["places"][0]["confidence"] == "high"
+    assert stored["data"]["places"][0]["best_for"] == ["food"]
 
 
 def test_save_without_trip_files_under_extracted_city(server):

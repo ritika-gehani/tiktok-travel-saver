@@ -21,6 +21,7 @@
 <nav class="topbar">
   <div class="crumbs"><a href="/" class="brand"><span class="brand-mark">🧭</span> Travel Saver</a><span>/</span><a href="{{BACK_HREF_ATTR}}">{{CITY_NAME}}</a><span>/</span><b id="crumbTopic"></b></div>
   <div class="topbar-actions">
+    <a href="/how-it-works#labels" class="btn quiet">What do these labels mean?</a>
     <a href="{{BACK_HREF_ATTR}}" class="btn">← Back to {{CITY_NAME}}</a>
   </div>
 </nav>
@@ -37,6 +38,7 @@
 </main>
 
 <script>
+const LABELS = {{LABELS_JSON}};
 {{RESULTS_JS}}
 const TIKTOK = {{DATA_JSON}};
 

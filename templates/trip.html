@@ -51,7 +51,9 @@
   .empty-card strong { display: block; color: var(--ink); font-size: 16px; font-weight: 600; margin-bottom: 6px; }
 
   .places .chip { font-size: 13px; padding: 6px 12px; background: var(--surface); border: 1px solid var(--line); }
-  .places .chip small { color: var(--ink-3); margin-left: 6px; }
+  .place-group + .place-group { margin-top: 18px; }
+  .place-group-head { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-3); margin-bottom: 8px; }
+  .place-group-head b { color: var(--ink-2); font-weight: 500; }
 
   @media (max-width: 720px) {
     .hero { flex-direction: column; align-items: flex-start; gap: 20px; }
@@ -66,6 +68,7 @@
 <nav class="topbar">
   <div class="crumbs"><a href="/" class="brand"><span class="brand-mark">🧭</span> Travel Saver</a><span>/</span><b id="crumbCity"></b></div>
   <div class="topbar-actions">
+    <a href="/how-it-works" class="btn quiet">How it works</a>
     <a href="/#new" class="btn">＋ Add another city</a>
   </div>
 </nav>
@@ -92,18 +95,19 @@
 
   <section id="placesSection" class="hidden">
     <div class="section-head"><h2>Places so far</h2><span id="placeCount"></span></div>
-    <div class="chips places" id="places"></div>
+    <div id="places"></div>
   </section>
 </main>
 
 <script>
 const TRIP = {{TRIP_JSON}};
 const TIKTOKS = {{TIKTOKS_JSON}};
+const LABELS = {{LABELS_JSON}};
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const plural = (n, one, many) => n === 1 ? `1 ${one}` : `${n} ${many}`;
 const MODE_LABEL = { collect: 'Collect ideas', itinerary: 'Itinerary' };
-const ICONS = { food: '🍜', restaurant: '🍜', cafe: '☕', bar: '🍸', shrine: '⛩️', temple: '⛩️', landmark: '🏛️', neighborhood: '🏘️', park: '🌿', shop: '🛍️', museum: '🖼️', viewpoint: '🌄', beach: '🏖️', hotel: '🛏️', transit: '🚉' };
+const ICONS = { food: '🍜', cafe: '☕', bar: '🍸', sight: '🏛️', nature: '🌿', neighborhood: '🏘️', shopping: '🛍️', activity: '🎟️', hotel: '🛏️', transit: '🚉' };
 const TINTS = ['#ffe4c7', '#d7ecff', '#e2f5d8', '#fde2ef', '#efe3ff', '#fff3c4', '#d9f4f1'];
 const hash = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
@@ -119,8 +123,8 @@ function fmtDates(start, end) {
 const fmtSaved = iso => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
 
 function iconFor(t) {
-  const types = (t.places || []).map(p => (p.place_type || '').toLowerCase());
-  const key = Object.keys(ICONS).find(k => types.some(ty => ty.includes(k)));
+  const types = (t.places || []).map(p => p.place_type);
+  const key = Object.keys(ICONS).find(k => types.includes(k));
   return key ? ICONS[key] : '📍';
 }
 
@@ -170,12 +174,18 @@ function render() {
   for (const t of TIKTOKS) for (const p of (t.places || [])) {
     if (!p.name) continue;
     const key = p.name.toLowerCase();
-    if (!seen.has(key)) seen.set(key, { name: p.name, type: p.place_type || '' });
+    if (!seen.has(key)) seen.set(key, { name: p.name, type: p.place_type || 'other' });
   }
   const list = [...seen.values()];
   document.getElementById('placesSection').classList.toggle('hidden', list.length === 0);
   document.getElementById('placeCount').textContent = plural(list.length, 'place', 'places');
-  document.getElementById('places').innerHTML = list.map(p => `<span class="chip">${esc(p.name)}${p.type ? `<small>${esc(p.type)}</small>` : ''}</span>`).join('');
+  document.getElementById('places').innerHTML = LABELS.place_types
+    .map(type => ({ type, items: list.filter(p => p.type === type.key) }))
+    .filter(g => g.items.length)
+    .map(g => `<div class="place-group">
+      <div class="place-group-head"><span>${ICONS[g.type.key] || '📍'}</span><b>${esc(g.type.label)}</b><span>${g.items.length}</span></div>
+      <div class="chips places">${g.items.map(p => `<span class="chip">${esc(p.name)}</span>`).join('')}</div>
+    </div>`).join('');
 }
 
 document.getElementById('pasteForm').addEventListener('submit', e => {

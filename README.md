@@ -131,6 +131,7 @@ The web UI:
 | `/trip/<id>` | One city trip: paste box, saved TikToks, extracted places |
 | `/tiktok/<id>` | Everything extracted from one TikTok |
 | `/add?trip=<id>` | Extraction flow; saves into that trip |
+| `/how-it-works` | What the app does and what every label means |
 | `GET /api/destinations?q=` / `?country=&q=` | Country / city typeahead |
 | `POST /trips` | Create a trip — `{country, city, start_date?, end_date?, planning_mode?}`; unknown names are rejected |
 | `POST /save` | Save an extraction — `{url, result, trip_id}` |
@@ -141,6 +142,18 @@ The country/city list lives in `data/destinations.json` (GeoNames cities with
 population ≥ 15k, plus close-spelling aliases so "Seville" finds Sevilla). To
 refresh it: `pip install geonamescache && python3 scripts/build_destinations.py`.
 
+### Labels are a fixed vocabulary
+
+Every label the app shows — place type, tags, confidence, usefulness,
+source and note type — comes from `labels.py`. The extraction prompt lists
+the exact values, and `normalize_extraction()` snaps whatever Gemini returns
+(or whatever was saved before the lists existed) onto them: exact synonym
+first ("taqueria" → `food`), then close spellings ("restaraunt" → `food`),
+then the meaningful word in a phrase ("night market" → `shopping`). Unknown
+place types become `other`; unknown tags are dropped. To add a label, add it
+to `labels.py` and to the matching list in `prompt-extract-places.txt`
+(`tests/test_labels.py` checks they stay in sync).
+
 ---
 
 ## Example Output
@@ -149,10 +162,10 @@ Running on a Kyoto photo spot carousel:
 
 ```
 Places found: 6
-  1. Kifune Shrine [shrine] — high confidence
+  1. Kifune Shrine [sight] — high confidence
   2. Kibuneguchi Station [transit] — high confidence
-  3. Kurama Temple East Gate [landmark] — high confidence
-  4. Shogaku-ji Temple [shrine] — high confidence
+  3. Kurama Temple East Gate [sight] — high confidence
+  4. Shogaku-ji Temple [sight] — high confidence
   5. Gion Minamigawa [neighborhood] — high confidence
   6. Monju [neighborhood] — high confidence
 
@@ -183,6 +196,7 @@ tiktok-travel-saver/
 ├── web_viewer.py              # Web UI: HTTP server + extraction pipeline
 ├── db.py                      # Trips + TikToks storage: Supabase, or local JSON when no keys are set
 ├── destinations.py            # Offline country → city typeahead and validation
+├── labels.py                  # Controlled vocabulary for every label + normalize_extraction()
 ├── scripts/build_destinations.py  # Regenerates data/destinations.json from GeoNames
 ├── data/destinations.json     # Bundled countries + cities (+ spelling aliases)
 ├── data/seed-library.json     # Sample trips and TikToks used to seed the local store
@@ -193,7 +207,8 @@ tiktok-travel-saver/
 │   ├── home.html              # City trip cards + Create trip sheet
 │   ├── trip.html              # One city trip: paste box, TikToks, places
 │   ├── detail.html            # Single TikTok detail view
-│   └── add.html               # Extraction flow, scoped to a trip
+│   ├── add.html               # Extraction flow, scoped to a trip
+│   └── how.html               # "How it works" + label legend, rendered from labels.py
 ├── prompt-extract-places.txt  # AI prompt for place extraction
 ├── final-extraction.json      # Output from last CLI run
 ├── PRD.md                     # Product vision, audience and roadmap

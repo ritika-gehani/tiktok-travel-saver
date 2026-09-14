@@ -22,6 +22,7 @@ import html as html_lib
 import base64
 from db import BACKEND, db_create_trip, db_fetch_all, db_find_by_id, db_find_trip, db_save_tiktok
 from destinations import canonical_city, canonical_country, search_cities, search_countries
+from labels import for_ui as labels_for_ui, normalize_extraction
 
 # Extraction-only dependencies (opencv, google-genai, playwright) are heavy and
 # only needed for POST /start, so the browse/save UI works without them.
@@ -445,7 +446,7 @@ Return only the extracted text, nothing else."""))
             raw = re.sub(r'^```(?:json)?\s*\n?', '', raw)
             raw = re.sub(r'\n?```\s*$', '', raw)
 
-        extraction = json.loads(raw)
+        extraction = normalize_extraction(json.loads(raw))
         log("JSON parsed successfully!")
 
         # Step 8: Done
@@ -486,12 +487,15 @@ HTML_HOME   = load_template("home.html")
 HTML_TRIP   = load_template("trip.html")
 HTML_DETAIL = load_template("detail.html")
 HTML_PAGE   = load_template("add.html")
+HTML_HOW    = load_template("how.html")
+LABELS_UI   = labels_for_ui()
 
 
 def render(template: str, **slots) -> str:
     """Fill {{SLOT}} placeholders. Values ending in _JSON are embedded as script-safe JSON,
     values ending in _ATTR are attribute-escaped, everything else is HTML-escaped."""
     body = template.replace("{{BASE_CSS}}", BASE_CSS).replace("{{RESULTS_JS}}", RESULTS_JS)
+    body = body.replace("{{LABELS_JSON}}", safe_json_for_html(LABELS_UI))
     for key, value in slots.items():
         if key.endswith("_JSON"):
             text = safe_json_for_html(value)
@@ -580,6 +584,9 @@ class Handler(BaseHTTPRequestHandler):
                 CITY_NAME=tiktok["city"],
                 DATA_JSON=tiktok,
             ))
+
+        elif path == "/how-it-works":
+            self._send_html(render(HTML_HOW))
 
         elif path == "/add":
             # Paste-a-TikTok flow. ?trip=<id> files the result into that trip.

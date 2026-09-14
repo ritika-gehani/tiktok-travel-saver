@@ -67,8 +67,8 @@
           "destination_country": "Japan",
           "overall_vibe": [
             "photography",
-            "sightseeing",
-            "casual exploring"
+            "first-timer",
+            "relaxed"
           ],
           "usefulness_for_itinerary": "high",
           "summary": "A carousel of the creator's favorite photo spots in Kyoto, from mountain shrines to the Gion backstreets."
@@ -76,7 +76,7 @@
         "places": [
           {
             "name": "Kifune Shrine",
-            "place_type": "shrine",
+            "place_type": "sight",
             "city": "Kyoto",
             "country": "Japan",
             "parent_place": null,
@@ -94,7 +94,7 @@
             ],
             "best_for": [
               "photography",
-              "nature"
+              "adventure"
             ],
             "warnings_or_requirements": [
               "Take the Eizan line to Kibuneguchi Station"
@@ -106,7 +106,7 @@
           },
           {
             "name": "Kurama Temple",
-            "place_type": "temple",
+            "place_type": "sight",
             "city": "Kyoto",
             "country": "Japan",
             "parent_place": null,
@@ -123,8 +123,8 @@
               "Hike over the mountain from Kifune (about 90 minutes)"
             ],
             "best_for": [
-              "hiking",
-              "sightseeing"
+              "adventure",
+              "first-timer"
             ],
             "warnings_or_requirements": [
               "Admission fee required"
@@ -154,7 +154,7 @@
             ],
             "best_for": [
               "photography",
-              "evening stroll"
+              "relaxed"
             ],
             "warnings_or_requirements": [],
             "mentioned_foods_or_items": [],
@@ -222,7 +222,7 @@
           "overall_vibe": [
             "food",
             "budget",
-            "local favorites"
+            "local-favorite"
           ],
           "usefulness_for_itinerary": "high",
           "summary": "The creator ranks five ramen shops across Tokyo, with tips on when to arrive to skip the line."
@@ -230,7 +230,7 @@
         "places": [
           {
             "name": "Fuunji",
-            "place_type": "restaurant",
+            "place_type": "food",
             "city": "Tokyo",
             "country": "Japan",
             "parent_place": null,
@@ -247,7 +247,7 @@
               "Go 30 minutes before opening"
             ],
             "best_for": [
-              "lunch"
+              "food"
             ],
             "warnings_or_requirements": [],
             "mentioned_foods_or_items": [
@@ -259,7 +259,7 @@
           },
           {
             "name": "Ichiran Shibuya",
-            "place_type": "restaurant",
+            "place_type": "food",
             "city": "Tokyo",
             "country": "Japan",
             "parent_place": null,
@@ -276,7 +276,7 @@
               "Open 24 hours, solo booths"
             ],
             "best_for": [
-              "late night"
+              "nightlife"
             ],
             "warnings_or_requirements": [],
             "mentioned_foods_or_items": [
@@ -288,7 +288,7 @@
           },
           {
             "name": "Afuri Ebisu",
-            "place_type": "restaurant",
+            "place_type": "food",
             "city": "Tokyo",
             "country": "Japan",
             "parent_place": null,
@@ -313,7 +313,7 @@
           },
           {
             "name": "Nakiryu",
-            "place_type": "restaurant",
+            "place_type": "food",
             "city": "Tokyo",
             "country": "Japan",
             "parent_place": null,
@@ -341,7 +341,7 @@
           },
           {
             "name": "Tsuta",
-            "place_type": "restaurant",
+            "place_type": "food",
             "city": "Tokyo",
             "country": "Japan",
             "parent_place": null,
@@ -396,7 +396,7 @@
           "destination_city": "Lisbon",
           "destination_country": "Portugal",
           "overall_vibe": [
-            "walking",
+            "relaxed",
             "history",
             "views"
           ],
@@ -406,7 +406,7 @@
         "places": [
           {
             "name": "Miradouro de Santa Luzia",
-            "place_type": "viewpoint",
+            "place_type": "sight",
             "city": "Lisbon",
             "country": "Portugal",
             "parent_place": null,
@@ -421,7 +421,7 @@
             },
             "creator_notes": [],
             "best_for": [
-              "sunset",
+              "views",
               "photography"
             ],
             "warnings_or_requirements": [],
@@ -432,7 +432,7 @@
           },
           {
             "name": "Castelo de Sao Jorge",
-            "place_type": "landmark",
+            "place_type": "sight",
             "city": "Lisbon",
             "country": "Portugal",
             "parent_place": null,
@@ -459,7 +459,7 @@
           },
           {
             "name": "Pasteis de Belem",
-            "place_type": "bakery",
+            "place_type": "food",
             "city": "Lisbon",
             "country": "Portugal",
             "parent_place": null,
@@ -486,7 +486,7 @@
           },
           {
             "name": "Clube de Fado",
-            "place_type": "restaurant",
+            "place_type": "food",
             "city": "Lisbon",
             "country": "Portugal",
             "parent_place": "Alfama",
@@ -501,8 +501,8 @@
             },
             "creator_notes": [],
             "best_for": [
-              "dinner",
-              "live music"
+              "food",
+              "nightlife"
             ],
             "warnings_or_requirements": [
               "Reservation required"
@@ -515,7 +515,7 @@
         ],
         "non_place_notes": [
           {
-            "type": "warning",
+            "type": "tip",
             "text": "Tram 28 gets very crowded after 10am — ride it early or walk.",
             "related_place": null
           }
@@ -548,7 +548,7 @@
           "destination_country": "Portugal",
           "overall_vibe": [
             "relaxed",
-            "food and wine"
+            "food"
           ],
           "usefulness_for_itinerary": "high",
           "summary": "Highlights from a weekend in Porto: a port wine cellar tour, the Dom Luis I bridge at dusk and a famous bookshop."
@@ -556,7 +556,7 @@
         "places": [
           {
             "name": "Livraria Lello",
-            "place_type": "bookshop",
+            "place_type": "shopping",
             "city": "Porto",
             "country": "Portugal",
             "parent_place": null,
@@ -571,7 +571,7 @@
             },
             "creator_notes": [],
             "best_for": [
-              "architecture"
+              "history"
             ],
             "warnings_or_requirements": [
               "Timed entry ticket required (redeemable against a book)"
@@ -583,7 +583,7 @@
           },
           {
             "name": "Ponte Dom Luis I",
-            "place_type": "landmark",
+            "place_type": "sight",
             "city": "Porto",
             "country": "Portugal",
             "parent_place": null,
@@ -598,7 +598,7 @@
             },
             "creator_notes": [],
             "best_for": [
-              "sunset",
+              "views",
               "photography"
             ],
             "warnings_or_requirements": [],
@@ -609,7 +609,7 @@
           },
           {
             "name": "Graham's Port Lodge",
-            "place_type": "winery",
+            "place_type": "bar",
             "city": "Porto",
             "country": "Portugal",
             "parent_place": null,
@@ -658,8 +658,8 @@
           "destination_city": "Mexico City",
           "destination_country": "Mexico",
           "overall_vibe": [
-            "street food",
-            "late night",
+            "food",
+            "nightlife",
             "budget"
           ],
           "usefulness_for_itinerary": "high",
@@ -668,7 +668,7 @@
         "places": [
           {
             "name": "El Huequito",
-            "place_type": "taqueria",
+            "place_type": "food",
             "city": "Mexico City",
             "country": "Mexico",
             "parent_place": null,
@@ -695,7 +695,7 @@
           },
           {
             "name": "Taqueria Orinoco",
-            "place_type": "taqueria",
+            "place_type": "food",
             "city": "Mexico City",
             "country": "Mexico",
             "parent_place": null,
@@ -710,7 +710,7 @@
             },
             "creator_notes": [],
             "best_for": [
-              "late night"
+              "nightlife"
             ],
             "warnings_or_requirements": [],
             "mentioned_foods_or_items": [
@@ -723,7 +723,7 @@
           },
           {
             "name": "Los Cocuyos",
-            "place_type": "taqueria",
+            "place_type": "food",
             "city": "Mexico City",
             "country": "Mexico",
             "parent_place": null,

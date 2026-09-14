@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 from destinations import canonical_city, canonical_country, country_code, flag
+from labels import normalize_extraction
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 SEED_FILE = os.path.join(PROJECT_DIR, "data", "seed-library.json")
@@ -61,7 +62,7 @@ def _slug(text: str) -> str:
 
 def _merge_row(row: dict) -> dict:
     """Flatten a stored TikTok row into the shape the HTML templates expect."""
-    entry = dict(row.get("data") or {})
+    entry = normalize_extraction(dict(row.get("data") or {}))
     entry["id"] = row["id"]
     entry["url"] = row["url"]
     entry["author"] = row.get("author") or ""
@@ -101,7 +102,7 @@ def _build_row(tiktok_url: str, extraction: dict, transcript: str, screen_text: 
         "city": trip["city"],
         "country": trip["country"],
         "status": "needs_review",
-        "data": extraction,
+        "data": normalize_extraction(extraction),
         "transcript": transcript or "",
         "screen_text": screen_text or "",
     }

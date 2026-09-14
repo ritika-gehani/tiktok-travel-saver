@@ -5,6 +5,22 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+/* LABELS is embedded by the server (see labels.py): {group: [{key, label, help}]}.
+   Every chip shows the human label and explains itself on hover. */
+const LABEL_INDEX = Object.fromEntries(
+  Object.entries(typeof LABELS === 'undefined' ? {} : LABELS)
+    .map(([group, items]) => [group, Object.fromEntries(items.map(i => [i.key, i]))])
+);
+function labelFor(group, key) {
+  const item = (LABEL_INDEX[group] || {})[key];
+  return item ? item.label : (key || '');
+}
+function chip(group, key, cls) {
+  const item = (LABEL_INDEX[group] || {})[key];
+  const title = item ? ` title="${escapeHtml(item.help)}"` : '';
+  return `<span class="${cls}"${title}>${escapeHtml(item ? item.label : key)}</span>`;
+}
+
 function renderExtraction(el, r, transcript, screenText) {
   let html = '';
 
@@ -14,8 +30,8 @@ function renderExtraction(el, r, transcript, screenText) {
     <p class="summary-text">${escapeHtml(s.summary) || ''}</p>
     <div class="meta-row" style="margin-top:12px">
       <span class="tag">${escapeHtml(s.destination_city) || '?'}, ${escapeHtml(s.destination_country) || '?'}</span>
-      <span class="tag ${escapeHtml(s.usefulness_for_itinerary) || ''}">${escapeHtml(s.usefulness_for_itinerary) || '?'} usefulness</span>
-      ${(s.overall_vibe || []).map(v => `<span class="tag vibe">${escapeHtml(v)}</span>`).join('')}
+      ${chip('usefulness', s.usefulness_for_itinerary || 'medium', `tag ${escapeHtml(s.usefulness_for_itinerary) || 'medium'}`)}
+      ${(s.overall_vibe || []).map(v => chip('tags', v, 'tag vibe')).join('')}
     </div>
   </div>`;
 
@@ -28,9 +44,9 @@ function renderExtraction(el, r, transcript, screenText) {
     html += `<div class="place-card">
       <div class="place-head">
         <span class="place-name">${escapeHtml(p.name) || '(unnamed)'}</span>
-        <span class="place-type">${escapeHtml(p.place_type) || ''}</span>
+        ${chip('place_types', p.place_type || 'other', 'place-type')}
         ${parentTxt}
-        <span class="tag ${confClass}">${escapeHtml(p.confidence)}</span>
+        ${chip('confidence', p.confidence || 'medium', `tag ${confClass}`)}
       </div>`;
     if (p.creator_notes && p.creator_notes.length) {
       html += `<div class="place-detail">${p.creator_notes.map(n => `• ${escapeHtml(n)}`).join('<br>')}</div>`;
@@ -42,13 +58,14 @@ function renderExtraction(el, r, transcript, screenText) {
       html += `<div class="place-detail warn"><strong>Heads up</strong> ${p.warnings_or_requirements.map(escapeHtml).join('; ')}</div>`;
     }
     if (p.best_for && p.best_for.length) {
-      html += `<div class="meta-row" style="margin-top:10px">${p.best_for.map(b => `<span class="tag">${escapeHtml(b)}</span>`).join('')}</div>`;
+      html += `<div class="meta-row" style="margin-top:10px">${p.best_for.map(b => chip('tags', b, 'tag')).join('')}</div>`;
     }
     const se = p.source_evidence || {};
+    const evTitle = k => `${labelFor('sources', k)}: ${se[k] ? 'mentioned here' : 'not mentioned here'}`;
     html += `<div class="evidence">
-      <span class="ev ${se.caption ? 'on' : 'off'}">caption</span>
-      <span class="ev ${se.transcript ? 'on' : 'off'}">transcript</span>
-      <span class="ev ${se.ocr ? 'on' : 'off'}">on-screen text</span>
+      <span class="ev ${se.caption ? 'on' : 'off'}" title="${escapeHtml(evTitle('caption'))}">caption</span>
+      <span class="ev ${se.transcript ? 'on' : 'off'}" title="${escapeHtml(evTitle('transcript'))}">transcript</span>
+      <span class="ev ${se.ocr ? 'on' : 'off'}" title="${escapeHtml(evTitle('ocr'))}">on-screen text</span>
       ${p.map_search_query ? `<span class="map-query">${escapeHtml(p.map_search_query)}</span>` : ''}
     </div>`;
     html += `</div>`;
@@ -60,7 +77,7 @@ function renderExtraction(el, r, transcript, screenText) {
     html += `<div class="card"><h2>Notes <span class="count">${notes.length}</span></h2>`;
     for (const n of notes) {
       const related = n.related_place ? ` <em>→ ${escapeHtml(n.related_place)}</em>` : '';
-      html += `<div class="note-item"><span class="note-type">${escapeHtml(n.type) || '?'}</span>${escapeHtml(n.text) || ''}${related}</div>`;
+      html += `<div class="note-item">${chip('note_types', n.type || 'unknown', 'note-type')}${escapeHtml(n.text) || ''}${related}</div>`;
     }
     html += `</div>`;
   }
