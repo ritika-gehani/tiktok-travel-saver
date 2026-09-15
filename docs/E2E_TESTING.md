@@ -10,7 +10,7 @@ travel videos into **trips — one trip per city**. Screens:
 
 | Route | Screen |
 |---|---|
-| `/` | Home: greeting, stats (trips / TikToks / places / to review), search, trip cards, "Recent saves", **New trip** sheet |
+| `/` | Home: greeting, stats (trips / TikToks / places / to review), search, trip cards, "Recently saved", **New trip** sheet (opened by the **＋ Create trip** button) |
 | `/trip/<id>` | Trip page: paste box, saved TikToks, "Places so far" grouped by type |
 | `/tiktok/<id>` | Detail page: summary, labels, places, "Looks good — approve" / "Undo approval" |
 | `/how-it-works` | Plain-language explanation of the app and every label |
@@ -40,38 +40,42 @@ Start screen-recording before step 1. Annotate each numbered flow as it starts a
 each expected result as an assertion.
 
 1. **Home loads with seeded content** — Open `/`. Expect: a greeting, four stats
-   reading `5 trips · 5 TikToks · 19 places · 5 to review`, "5 cities", five trip
+   `5 trips`, `5 TikToks`, `19 places`, `5 to review`, "5 cities", five trip
    cards each showing `Country · <dates or "no dates yet">` (Tokyo, Kyoto, Mexico
    City have dates; Lisbon and Porto don't), `1 TikTok · N places`, a mode pill
    (Kyoto = "Itinerary", others "Collect ideas"), a `1 to review` pill, plus an
-   "Add another city" card, and a "Recent saves" row with 5 entries.
+   "Add another city" card, and a "Recently saved" row with 5 entries.
 2. **Search filters trips** — Type `lis` in the search box. Expect: only the Lisbon
    card and matching recent saves remain; "1 city". Clear it: all cards return.
 3. **Search no-match** — Type `zzzz`. Expect: "Nothing matches that search." and
    "0 cities"; the Add card is hidden too. Press **Escape** while focused: box
-   clears, everything returns. From the page body press **`/`**: search gains
-   focus. Press **`n`**: the New trip sheet opens (Escape closes it).
-4. **New trip — country typeahead** — Click **New trip**. Type `jap`. Expect: a
-   menu with "Japan" and its flag, match highlighted; city box is disabled until a
-   country is picked. Type `zzz`: menu shows `No country named "zzz"` + spelling
-   hint. Pick Japan: flag appears, city box enables and is focused.
+   clears and blurs, everything returns. From the page body press **`/`**: search
+   gains focus. Press Escape again to leave the box, then **`n`**: the New trip
+   sheet opens with country suggestions already showing (Escape once dismisses
+   the suggestions, Escape again closes the sheet).
+4. **New trip — country typeahead** — Click **＋ Create trip**; the "New trip"
+   sheet opens. Type `jap`. Expect: a menu with "Japan" and its flag, "Jap"
+   highlighted; city box is disabled until a country is picked. Type `zzz`: menu
+   shows `No country named “zzz”` (curly quotes) + "Check the spelling or pick
+   from the list." Pick Japan: flag appears, city box enables and is focused.
 5. **New trip — unknown city** — With Japan picked, type `Atlantis` in city.
-   Expect: `No city named "Atlantis" in Japan`, Create button stays disabled.
+   Expect: `No city named “Atlantis” in Japan`, Create button stays disabled.
 6. **New trip — duplicate city** — Type `Tok`, pick Tokyo. Expect: the note
    "You already have a Tokyo trip. Open it →" and the button reads
    "Create another Tokyo trip". The link opens `/trip/tokyo-japan`.
 7. **New trip — create** — Pick Japan → Osaka, leave dates empty, click
-   **Create trip**. Expect: redirect to `/trip/osaka-japan` showing "Osaka" with an
-   empty TikTok list. Back on `/`, stats read 6 trips and an Osaka card exists.
+   **Create trip**. Expect: redirect to `/trip/osaka-japan` showing "Osaka" and
+   "Nothing here yet". Back on `/`, stats read 6 trips and an Osaka card exists.
    Also try an end date before the start date: inline error "The end date is
    before the start date.", no request sent.
 8. **Trip page** — Open `/trip/kyoto-japan`. Expect: city heading, "How it works"
-   link, a paste box, "Saved TikToks" (1) with topic/author/places, and "Places so
-   far" grouped by place type with counts. Clicking a TikTok opens its detail page.
+   link, a paste box, "Saved TikToks · Newest first" with one entry showing
+   topic/author/places, and "Places so far" grouped by place type with counts
+   (Kyoto: Sightseeing 2, Neighborhood 2). Clicking a TikTok opens its detail page.
 9. **Detail page — approve & undo** — From Kyoto open the TikTok. Expect: back link
    to the trip, summary, label chips with hover explanations, places list, status
    "Check the places below, then approve." Click **Looks good — approve**: button
-   becomes **Undo approval**, status reads "Approved …". Reload: still approved;
+   becomes **Undo approval**, chip reads "Reviewed", status reads "Approved <date>". Reload: still approved;
    home "to review" drops to 4 and the Kyoto card loses its review pill. Click
    **Undo approval**: back to needs review everywhere.
 10. **How it works** — Open `/how-it-works` (also via the header link and the
@@ -96,7 +100,8 @@ is cut off / overlapping at a normal desktop width; a label not in `labels.py`.
 **Expected, not a bug**: `/add` failing without extraction deps or API keys;
 Supabase being unused; `/status` returning a mostly-empty JSON object;
 greeting changing with time of day; date display using en-US short months;
-duplicate city trips being allowed after the warning.
+duplicate city trips being allowed after the warning; flag emoji rendering as
+boxes on a machine without an emoji font (check the DOM text instead).
 
 ## 5. Reporting conventions
 
