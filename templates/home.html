@@ -288,7 +288,7 @@ function applySearch(q) {
   let visible = 0;
   for (const el of document.querySelectorAll('[data-search]')) {
     const isAdd = el.classList.contains('add');
-    const show = !q ? true : (!isAdd && el.dataset.search.includes(q));
+    const show = !q ? true : (!isAdd && el.dataset.search.startsWith(q));
     el.classList.toggle('hidden', !show);
     if (show && !isAdd && el.classList.contains('trip')) visible++;
   }
@@ -447,7 +447,7 @@ document.getElementById('tripForm').addEventListener('submit', e => {
     body: JSON.stringify({ country: countryTA.value.label, city: cityTA.value.label, start_date: start, end_date: end, planning_mode: planningMode }),
   }).then(r => r.json().then(data => ({ ok: r.ok, data })))
     .then(({ ok, data }) => {
-      if (ok && data.trip) { window.location.href = '/trip/' + encodeURIComponent(data.trip.id); return; }
+      if (ok && data.trip) { window.location.href = '/trip/' + encodeURIComponent(data.trip.city); return; }
       formError.textContent = data.message || data.error || 'Something went wrong.';
       createBtn.disabled = false; createBtn.textContent = 'Create trip';
     })

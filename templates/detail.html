@@ -92,9 +92,9 @@ reviewBtn.addEventListener('click', async () => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not update review status');
+    paintStatus();
     TIKTOK.status = data.status;
     TIKTOK.reviewed_at = data.reviewed_at || '';
-    paintStatus();
   } catch (err) {
     reviewNote.textContent = err.message;
   } finally {
