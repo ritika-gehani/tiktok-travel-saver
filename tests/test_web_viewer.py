@@ -363,6 +363,17 @@ def test_review_can_be_undone(server):
     assert resp["status"] == "needs_review" and resp["reviewed_at"] == ""
 
 
+def test_detail_page_repaints_after_applying_the_review_response(server):
+    # Regression: after POST /review succeeds the page must copy the returned
+    # status / reviewed_at into TIKTOK *before* paintStatus(), or the button,
+    # chip and note keep showing the old state until a reload.
+    status, body = get(server, "/tiktok/kyoto-7301122334455667788")
+    assert status == 200
+    handler = body[body.index("const data = await res.json();"):body.index("} catch (err)")]
+    assert handler.index("TIKTOK.status = data.status;") < handler.index("paintStatus();")
+    assert handler.index("TIKTOK.reviewed_at = data.reviewed_at") < handler.index("paintStatus();")
+
+
 def test_review_rejects_unknown_tiktok_and_status(server):
     status, _ = post_json(server, "/review", {"id": "nope-123", "status": "reviewed"})
     assert status == 404
