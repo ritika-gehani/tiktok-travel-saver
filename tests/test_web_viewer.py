@@ -202,6 +202,17 @@ def test_trip_page_lists_only_its_tiktoks(server):
     assert all(t["trip_id"] == "tokyo-japan" for t in tiktoks)
 
 
+def test_trip_page_counts_tiktoks_that_still_need_review(server):
+    # Regression: the "to review" stat must count status === 'needs_review',
+    # the same way the home page cards do, not the reviewed ones.
+    status, body = get(server, "/trip/kyoto-japan")
+    assert status == 200
+    assert [t["status"] for t in embedded(body, "TIKTOKS")] == ["needs_review"]
+    stats = body[body.index("const review = "):body.index("'to review'")]
+    assert "t.status === 'needs_review'" in stats
+    assert "!==" not in stats
+
+
 def test_unknown_trip_is_404(server):
     status, _ = get(server, "/trip/atlantis-nowhere")
     assert status == 404
