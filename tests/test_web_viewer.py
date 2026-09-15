@@ -254,6 +254,16 @@ def test_how_it_works_page(server):
     assert embedded(body, "LABELS")["confidence"][0]["key"] == "high"
 
 
+def test_how_it_works_labels_anchor_clears_the_sticky_topbar(server):
+    # Regression: /how-it-works#labels must scroll the heading below the sticky
+    # top bar, so anchor targets need a scroll offset at least as tall as it.
+    status, body = get(server, "/how-it-works")
+    assert status == 200
+    assert 'id="labels"' in body
+    assert "position: sticky; top: 0" in body
+    assert "scroll-padding-top" in body or "scroll-margin-top" in body
+
+
 def test_unknown_path_is_404(server):
     status, _ = get(server, "/nope")
     assert status == 404
