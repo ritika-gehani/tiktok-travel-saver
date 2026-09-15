@@ -100,6 +100,16 @@ def test_home_lists_one_trip_per_seeded_city(server):
     assert data["trips"][0]["flag"]  # country flag derived from ISO code
 
 
+def test_home_search_matches_anywhere_in_the_search_text(server):
+    # Regression: searching "lis" must keep Lisbon's recent save (whose search text
+    # starts with its topic) and searching a place name must keep its city card.
+    status, body = get(server, "/")
+    assert status == 200
+    apply_search = body[body.index("function applySearch("):body.index("/* ---- Typeahead")]
+    assert "el.dataset.search.includes(q)" in apply_search
+    assert "startsWith" not in apply_search
+
+
 # --- Destination typeahead ----------------------------------------------------
 
 def test_country_typeahead_filters_as_you_type(server):
