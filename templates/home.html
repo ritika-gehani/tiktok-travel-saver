@@ -288,7 +288,7 @@ function applySearch(q) {
   let visible = 0;
   for (const el of document.querySelectorAll('[data-search]')) {
     const isAdd = el.classList.contains('add');
-    const show = !q ? true : (!isAdd && el.dataset.search.startsWith(q));
+    const show = !q ? true : (!isAdd && el.dataset.search.includes(q));
     el.classList.toggle('hidden', !show);
     if (show && !isAdd && el.classList.contains('trip')) visible++;
   }
