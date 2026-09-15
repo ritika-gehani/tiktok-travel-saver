@@ -157,7 +157,7 @@ function render() {
   document.getElementById('pasteBtn').textContent = `Save to ${TRIP.city}`;
 
   const places = TIKTOKS.reduce((n, t) => n + (t.places || []).length, 0);
-  const review = TIKTOKS.filter(t => t.status !== 'needs_review').length;
+  const review = TIKTOKS.filter(t => t.status === 'needs_review').length;
   document.getElementById('lede').textContent = TIKTOKS.length
     ? `Everything you've saved for ${TRIP.city}, in one place. Open a TikTok to see what we found in it.`
     : `Paste the TikToks you saved for ${TRIP.city} and we'll pull out the places worth remembering.`;
