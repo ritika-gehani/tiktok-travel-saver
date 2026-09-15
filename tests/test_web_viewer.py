@@ -165,6 +165,19 @@ def test_create_trip_canonicalises_country_and_city(server):
     assert embedded(body, "TIKTOKS") == []
 
 
+def test_create_trip_redirects_to_the_trip_id_route(server):
+    # Regression: the sheet must send the browser to /trip/<id> (the only route
+    # the server resolves), not /trip/<city>, which is a 404.
+    status, resp = post_json(server, "/trips", {"country": "Japan", "city": "Osaka"})
+    assert status == 201
+    status, _ = get(server, "/trip/" + resp["trip"]["city"])
+    assert status == 404
+
+    status, body = get(server, "/")
+    assert "'/trip/' + encodeURIComponent(data.trip.id)" in body
+    assert "encodeURIComponent(data.trip.city)" not in body
+
+
 def test_create_trip_rejects_unknown_country_and_city(server):
     status, resp = post_json(server, "/trips", {"country": "Narnia", "city": "Cair Paravel"})
     assert status == 400

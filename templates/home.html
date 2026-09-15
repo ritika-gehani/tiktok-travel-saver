@@ -447,7 +447,7 @@ document.getElementById('tripForm').addEventListener('submit', e => {
     body: JSON.stringify({ country: countryTA.value.label, city: cityTA.value.label, start_date: start, end_date: end, planning_mode: planningMode }),
   }).then(r => r.json().then(data => ({ ok: r.ok, data })))
     .then(({ ok, data }) => {
-      if (ok && data.trip) { window.location.href = '/trip/' + encodeURIComponent(data.trip.city); return; }
+      if (ok && data.trip) { window.location.href = '/trip/' + encodeURIComponent(data.trip.id); return; }
       formError.textContent = data.message || data.error || 'Something went wrong.';
       createBtn.disabled = false; createBtn.textContent = 'Create trip';
     })
