@@ -22,13 +22,19 @@ travel videos into **trips — one trip per city**. Screens:
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 make install                                   # python-dotenv, supabase, pytest
-LIBRARY_FILE=$(mktemp -d)/library.json PORT=5050 make run
-# → http://localhost:5050  (seeded from data/seed-library.json on first load)
+SUPABASE_URL= SUPABASE_SERVICE_ROLE_KEY= \
+  LIBRARY_FILE=$(mktemp -d)/library.json PORT=5050 make run
+# → http://localhost:5050  (fresh file, seeded from data/seed-library.json on first load)
 make test                                      # pytest -q, 70 tests, must stay green
 ```
 
-- No API keys or Supabase needed. Always point `LIBRARY_FILE` at a throwaway copy
-  so the seed library is never mutated between runs.
+- No API keys or Supabase needed. Always point `LIBRARY_FILE` at a fresh path in a
+  temp dir: the app copies the seed there on first access, so `data/library.json`
+  (and the seed) are never mutated between runs.
+- The empty `SUPABASE_URL=`/`SUPABASE_SERVICE_ROLE_KEY=` matter: if `.env` holds
+  Supabase keys the app would otherwise ignore `LIBRARY_FILE` and write trips and
+  review changes to the real database. Confirm the startup banner says
+  `Library backend: local` before testing; stop if it says `supabase`.
 - Templates are loaded at import time: **restart the server after editing anything
   in `templates/`**.
 - Seed data: 5 trips (Tokyo, Kyoto, Lisbon, Porto, Mexico City), 5 TikToks
@@ -84,8 +90,9 @@ each expected result as an assertion.
     with a one-line meaning that matches `labels.py`.
 11. **/add error path** — Open `/add?trip=kyoto-japan`, paste
     `https://www.tiktok.com/@x/video/1`, submit. Expect: the run ends with
-    "Extraction failed" and the log says extraction dependencies are not
-    installed. The UI must not hang or throw. `/add?trip=nope` → 404.
+    "Extraction failed" and the log gives a clear reason — "Extraction dependencies
+    not installed" (default) or a missing `GOOGLE_API_KEY`/`ASSEMBLYAI_API_KEY` if
+    `make install-extraction` was run. The UI must not hang or throw. `/add?trip=nope` → 404.
 12. **404s** — `/trip/nope`, `/tiktok/nope`, `/nowhere` return HTTP 404 with a
     plain-text message; `/api/destinations?country=Narnia` returns 404 JSON.
 

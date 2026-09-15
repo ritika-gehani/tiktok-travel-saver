@@ -13,14 +13,15 @@ Start from the repository root with a fresh throwaway store:
 
 ```bash
 source .venv/bin/activate
-env -u SUPABASE_URL -u SUPABASE_SERVICE_ROLE_KEY \
-  -u GOOGLE_API_KEY -u ASSEMBLYAI_API_KEY \
+SUPABASE_URL= SUPABASE_SERVICE_ROLE_KEY= GOOGLE_API_KEY= ASSEMBLYAI_API_KEY= \
   LIBRARY_FILE=$(mktemp -d)/library.json PORT=5050 python3 -u web_viewer.py
 ```
 
-Check whether a local `.env` would reintroduce service configuration. Never
-overwrite it or print its values. Confirm startup says the library backend is
-local before mutating trips/statuses. Restart after template edits; templates load
+Set the keys to empty strings rather than unsetting them: `load_dotenv` does not
+override variables already present, so a local `.env` cannot reintroduce them
+(`env -u` would not protect against that). Never overwrite `.env` or print its
+values. Confirm startup says `Library backend: local` before mutating
+trips/statuses. Restart after template edits; templates load
 at import time.
 
 The header Create trip action opens the New trip sheet. Select a country before
