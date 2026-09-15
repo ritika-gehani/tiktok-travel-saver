@@ -20,11 +20,28 @@ from urllib.parse import parse_qs, urlparse, quote, unquote
 import html as html_lib
 
 import base64
-import cv2
-from google import genai
-from google.genai import types
-from playwright.sync_api import sync_playwright
-from db import db_fetch_all, db_find_by_id, db_save_tiktok
+from db import (
+    BACKEND,
+    db_create_trip,
+    db_fetch_all,
+    db_find_by_id,
+    db_find_trip,
+    db_save_tiktok,
+    db_set_status,
+)
+from destinations import canonical_city, canonical_country, search_cities, search_countries
+from labels import for_ui as labels_for_ui, normalize_extraction
+
+# Extraction-only dependencies (opencv, google-genai, playwright) are heavy and
+# only needed for POST /start, so the browse/save UI works without them.
+try:
+    import cv2
+    from google import genai
+    from google.genai import types
+    from playwright.sync_api import sync_playwright
+    EXTRACTION_AVAILABLE = True
+except ImportError:
+    EXTRACTION_AVAILABLE = False
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROMPT_FILE = os.path.join(PROJECT_DIR, "prompt-extract-places.txt")
@@ -70,6 +87,8 @@ def log(msg, step=None):
 
 def load_env():
     env_path = os.path.join(PROJECT_DIR, ".env")
+    if not os.path.exists(env_path):
+        return
     with open(env_path) as f:
         for line in f:
             line = line.strip()
@@ -78,11 +97,14 @@ def load_env():
                 os.environ[key.strip()] = value.strip()
 
 
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+
+
 def gemini_call(client, prompt, max_retries=3):
     for attempt in range(1, max_retries + 1):
         try:
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model=GEMINI_MODEL,
                 contents=prompt
             )
             return response.text
@@ -126,6 +148,10 @@ def run_pipeline(tiktok_url):
     carousel = "/photo/" in tiktok_url
 
     try:
+        if not EXTRACTION_AVAILABLE:
+            raise Exception(
+                "Extraction dependencies not installed — run: pip install -r requirements-extraction.txt"
+            )
         load_env()
         google_key = os.environ.get("GOOGLE_API_KEY")
         assemblyai_key = os.environ.get("ASSEMBLYAI_API_KEY")
@@ -257,7 +283,7 @@ Return only the extracted text, nothing else."""))
 
                 log(f"Sending {len(images)} images to Gemini Vision...")
                 response = gemini_client.models.generate_content(
-                    model='gemini-2.5-flash',
+                    model=GEMINI_MODEL,
                     contents=contents
                 )
                 screen_text = response.text
@@ -403,7 +429,7 @@ Return only the extracted text, nothing else."""))
 
                 log(f"Sending {len(frames)} frames to Gemini Vision...")
                 response = gemini_client.models.generate_content(
-                    model='gemini-2.5-flash',
+                    model=GEMINI_MODEL,
                     contents=contents
                 )
                 screen_text = response.text
@@ -431,7 +457,7 @@ Return only the extracted text, nothing else."""))
             raw = re.sub(r'^```(?:json)?\s*\n?', '', raw)
             raw = re.sub(r'\n?```\s*$', '', raw)
 
-        extraction = json.loads(raw)
+        extraction = normalize_extraction(json.loads(raw))
         log("JSON parsed successfully!")
 
         # Step 8: Done
@@ -464,12 +490,32 @@ def load_template(name: str) -> str:
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
-BASE_CSS     = load_template("base.css")
-HTML_HOME    = load_template("home.html")
-HTML_COUNTRY = load_template("country.html")
-HTML_CITY    = load_template("city.html")
-HTML_DETAIL  = load_template("detail.html")
-HTML_PAGE    = load_template("add.html")
+DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+BASE_CSS    = load_template("base.css")
+RESULTS_JS  = load_template("results.js")
+HTML_HOME   = load_template("home.html")
+HTML_TRIP   = load_template("trip.html")
+HTML_DETAIL = load_template("detail.html")
+HTML_PAGE   = load_template("add.html")
+HTML_HOW    = load_template("how.html")
+LABELS_UI   = labels_for_ui()
+
+
+def render(template: str, **slots) -> str:
+    """Fill {{SLOT}} placeholders. Values ending in _JSON are embedded as script-safe JSON,
+    values ending in _ATTR are attribute-escaped, everything else is HTML-escaped."""
+    body = template.replace("{{BASE_CSS}}", BASE_CSS).replace("{{RESULTS_JS}}", RESULTS_JS)
+    body = body.replace("{{LABELS_JSON}}", safe_json_for_html(LABELS_UI))
+    for key, value in slots.items():
+        if key.endswith("_JSON"):
+            text = safe_json_for_html(value)
+        elif key.endswith("_ATTR"):
+            text = html_lib.escape(value, quote=True)
+        else:
+            text = html_lib.escape(str(value))
+        body = body.replace("{{" + key + "}}", text)
+    return body
 
 
 # ---------------------------------------------------------------------------
@@ -516,63 +562,24 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
     def do_GET(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
+        query = {k: v[0] for k, v in parse_qs(parsed.query).items()}
 
         if path == "/":
-            # Home page — list of country cards.
-            live_data = db_fetch_all()
-            body = (
-                HTML_HOME
-                .replace("{{BASE_CSS}}", BASE_CSS)
-                .replace("{{DATA_JSON}}", safe_json_for_html(live_data))
-            )
-            self._send_html(body)
+            # Home page — one card per city trip.
+            self._send_html(render(HTML_HOME, DATA_JSON=db_fetch_all()))
 
-        elif path.startswith("/country/"):
-            # Country page — list of city cards filtered to this country.
-            country_name = unquote(path[len("/country/"):])
-            if not country_name:
-                self._send_404("Country name missing")
+        elif path.startswith("/trip/"):
+            # Trip page — the TikToks saved into one city trip.
+            trip_id = unquote(path[len("/trip/"):])
+            trip = db_find_trip(trip_id)
+            if not trip:
+                self._send_404(f"Trip '{trip_id}' not found")
                 return
             live_data = db_fetch_all()
-            body = (
-                HTML_COUNTRY
-                .replace("{{BASE_CSS}}", BASE_CSS)
-                .replace("{{COUNTRY_NAME_JSON}}", safe_json_for_html(country_name))
-                .replace("{{COUNTRY_NAME}}", html_lib.escape(country_name))
-                .replace("{{DATA_JSON}}", safe_json_for_html(live_data))
-            )
-            self._send_html(body)
-
-        elif path.startswith("/city/"):
-            # City page — list of TikTok cards filtered to this city.
-            city_name = unquote(path[len("/city/"):])
-            if not city_name:
-                self._send_404("City name missing")
-                return
-            live_data = db_fetch_all()
-            # Look up country from the first matching TikTok so we can build the
-            # back link to its country page. Falls back to home if no match.
-            country_name = next(
-                (t["country"] for t in live_data.get("tiktoks", []) if t.get("city") == city_name),
-                None,
-            )
-            if country_name:
-                back_href = "/country/" + quote(country_name, safe="")
-                back_label = country_name
-            else:
-                back_href = "/"
-                back_label = "Home"
-            body = (
-                HTML_CITY
-                .replace("{{BASE_CSS}}", BASE_CSS)
-                .replace("{{BACK_HREF}}", html_lib.escape(back_href, quote=True))
-                .replace("{{BACK_LABEL}}", html_lib.escape(back_label))
-                .replace("{{CITY_NAME_JSON}}", safe_json_for_html(city_name))
-                .replace("{{CITY_NAME}}", html_lib.escape(city_name))
-                .replace("{{DATA_JSON}}", safe_json_for_html(live_data))
-            )
-            self._send_html(body)
+            tiktoks = [t for t in live_data["tiktoks"] if t["trip_id"] == trip_id]
+            self._send_html(render(HTML_TRIP, TRIP_JSON=trip, TIKTOKS_JSON=tiktoks, CITY_NAME=trip["city"]))
 
         elif path.startswith("/tiktok/"):
             # Detail page — full extracted info for one TikTok.
@@ -581,19 +588,36 @@ class Handler(BaseHTTPRequestHandler):
             if not tiktok:
                 self._send_404(f"TikTok '{tiktok_id}' not found")
                 return
-            back_href = "/city/" + quote(tiktok["city"], safe="")
-            body = (
-                HTML_DETAIL
-                .replace("{{BASE_CSS}}", BASE_CSS)
-                .replace("{{BACK_HREF}}", html_lib.escape(back_href, quote=True))
-                .replace("{{CITY_NAME}}", html_lib.escape(tiktok["city"]))
-                .replace("{{DATA_JSON}}", safe_json_for_html(tiktok))
-            )
-            self._send_html(body)
+            back_href = "/trip/" + quote(tiktok["trip_id"], safe="") if tiktok["trip_id"] else "/"
+            self._send_html(render(
+                HTML_DETAIL,
+                BACK_HREF_ATTR=back_href,
+                CITY_NAME=tiktok["city"],
+                DATA_JSON=tiktok,
+            ))
+
+        elif path == "/how-it-works":
+            self._send_html(render(HTML_HOW))
 
         elif path == "/add":
-            # Existing single-page pipeline experience, unchanged.
-            self._send_html(HTML_PAGE)
+            # Paste-a-TikTok flow. ?trip=<id> files the result into that trip.
+            trip_id = query.get("trip", "")
+            trip = db_find_trip(trip_id) if trip_id else None
+            if trip_id and not trip:
+                self._send_404(f"Trip '{trip_id}' not found")
+                return
+            self._send_html(render(HTML_PAGE, TRIP_JSON=trip))
+
+        elif path == "/api/destinations":
+            # Typeahead: countries when no ?country=, else cities within that country.
+            q = query.get("q", "")
+            country = query.get("country", "")
+            if not country:
+                self._send_json({"countries": search_countries(q)})
+            elif canonical_country(country) is None:
+                self._send_json({"error": f"Unknown country {country!r}", "cities": []}, status=404)
+            else:
+                self._send_json({"country": canonical_country(country), "cities": search_cities(country, q)})
 
         elif path == "/status":
             self.send_response(200)
@@ -625,20 +649,80 @@ class Handler(BaseHTTPRequestHandler):
 
             self._send_json({"ok": True})
 
+        elif path == "/trips":
+            # Create a city trip. Country and city must be known destinations.
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length))
+            country = canonical_country(body.get("country", ""))
+            if country is None:
+                self._send_json({"error": "unknown_country", "message": f"No country named \u201c{body.get('country', '')}\u201d"}, status=400)
+                return
+            city = canonical_city(country, body.get("city", ""))
+            if city is None:
+                self._send_json({"error": "unknown_city", "message": f"No city named \u201c{body.get('city', '')}\u201d in {country}"}, status=400)
+                return
+            start_date, end_date = body.get("start_date") or "", body.get("end_date") or ""
+            for label, value in (("start_date", start_date), ("end_date", end_date)):
+                if value and not DATE_RE.fullmatch(value):
+                    self._send_json({"error": "bad_date", "message": f"{label} must be YYYY-MM-DD"}, status=400)
+                    return
+            if start_date and end_date and end_date < start_date:
+                self._send_json({"error": "bad_date_range", "message": "End date is before start date"}, status=400)
+                return
+            try:
+                trip = db_create_trip(
+                    country, city,
+                    start_date=start_date,
+                    end_date=end_date,
+                    planning_mode=body.get("planning_mode") or "collect",
+                )
+                self._send_json({"ok": True, "trip": trip}, status=201)
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=500)
+
+        elif path == "/review":
+            # Approve a TikTok's extraction (or send it back to needs_review).
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length))
+            tiktok_id = body.get("id") or ""
+            status = body.get("status") or "reviewed"
+            if status not in ("needs_review", "reviewed"):
+                self._send_json({"error": f"Unknown status '{status}'"}, status=400)
+                return
+            try:
+                row = db_set_status(tiktok_id, status)
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=500)
+                return
+            if row is None:
+                self._send_json({"error": f"TikTok '{tiktok_id}' not found"}, status=404)
+                return
+            self._send_json({"ok": True, "id": row["id"], "status": row["status"], "reviewed_at": row.get("reviewed_at", "")})
+
         elif path == "/save":
-            # Save the current pipeline result to Supabase.
+            # Save the current pipeline result into a trip.
             length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(length))
             tiktok_url = body.get("url", "")
+            trip_id = body.get("trip_id") or ""
             extraction = body.get("result") or pipeline_state.get("result")
             transcript = body.get("transcript") or pipeline_state.get("transcript", "")
             screen_text = body.get("screen_text") or pipeline_state.get("screen_text", "")
             if not tiktok_url or not extraction:
                 self._send_json({"error": "Missing url or result"}, status=400)
                 return
+            if trip_id and not db_find_trip(trip_id):
+                self._send_json({"error": f"Trip '{trip_id}' not found"}, status=404)
+                return
             try:
-                saved = db_save_tiktok(tiktok_url, extraction, transcript, screen_text)
-                self._send_json({"ok": True, "id": saved.get("id"), "city": saved.get("city"), "country": saved.get("country")})
+                saved = db_save_tiktok(tiktok_url, extraction, transcript, screen_text, trip_id=trip_id)
+                self._send_json({
+                    "ok": True,
+                    "id": saved.get("id"),
+                    "trip_id": saved.get("trip_id"),
+                    "city": saved.get("city"),
+                    "country": saved.get("country"),
+                })
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
 
@@ -648,10 +732,13 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    port = 5050
+    port = int(os.environ.get("PORT", 5050))
     server = HTTPServer(("0.0.0.0", port), Handler)
     print(f"🗺️  TikTok Travel Saver — Web Viewer")
     print(f"   Open http://localhost:{port} in your browser")
+    print(f"   Library backend: {BACKEND}" + ("" if BACKEND == "supabase" else " (no Supabase keys — using local JSON file)"))
+    if not EXTRACTION_AVAILABLE:
+        print("   Extraction disabled (install requirements-extraction.txt to enable /add)")
     print(f"   Press Ctrl+C to stop\n")
     try:
         server.serve_forever()

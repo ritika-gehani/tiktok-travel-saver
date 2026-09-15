@@ -17,6 +17,7 @@ load_env()
 
 # Configuration
 API_KEY = os.environ.get("GOOGLE_API_KEY")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
 OCR_FILE = os.path.join(os.path.dirname(__file__), "ocr-results.json")
 OUTPUT_FILE = os.path.join(os.path.dirname(__file__), "cleaned-ocr.txt")
 
@@ -84,7 +85,7 @@ print("(This may take 10-20 seconds)\n")
 
 # Send to Gemini
 response = client.models.generate_content(
-    model='gemini-2.5-flash',
+    model=GEMINI_MODEL,
     contents=prompt
 )
 

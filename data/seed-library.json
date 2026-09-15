@@ -1,0 +1,764 @@
+{
+  "trips": [
+    {
+      "id": "tokyo-japan",
+      "country": "Japan",
+      "city": "Tokyo",
+      "start_date": "2026-03-03",
+      "end_date": "2026-03-08",
+      "planning_mode": "collect",
+      "created_at": "2026-03-01T10:00:00+00:00"
+    },
+    {
+      "id": "kyoto-japan",
+      "country": "Japan",
+      "city": "Kyoto",
+      "start_date": "2026-03-08",
+      "end_date": "2026-03-12",
+      "planning_mode": "itinerary",
+      "created_at": "2026-03-01T10:05:00+00:00"
+    },
+    {
+      "id": "lisbon-portugal",
+      "country": "Portugal",
+      "city": "Lisbon",
+      "start_date": null,
+      "end_date": null,
+      "planning_mode": "collect",
+      "created_at": "2026-03-30T09:00:00+00:00"
+    },
+    {
+      "id": "porto-portugal",
+      "country": "Portugal",
+      "city": "Porto",
+      "start_date": null,
+      "end_date": null,
+      "planning_mode": "collect",
+      "created_at": "2026-03-30T09:02:00+00:00"
+    },
+    {
+      "id": "mexico-city-mexico",
+      "country": "Mexico",
+      "city": "Mexico City",
+      "start_date": "2026-05-14",
+      "end_date": "2026-05-19",
+      "planning_mode": "collect",
+      "created_at": "2026-04-18T17:00:00+00:00"
+    }
+  ],
+  "tiktoks": [
+    {
+      "id": "kyoto-7301122334455667788",
+      "url": "https://www.tiktok.com/@kyotowalks/photo/7301122334455667788",
+      "author": "@kyotowalks",
+      "trip_id": "kyoto-japan",
+      "city": "Kyoto",
+      "country": "Japan",
+      "status": "needs_review",
+      "cover_path": "",
+      "created_at": "2026-03-02T09:15:00+00:00",
+      "reviewed_at": null,
+      "transcript": "",
+      "screen_text": "Kifune Shrine\n180 Kuramakibunecho, Sakyo Ward, Kyoto\nKurama Temple East Gate",
+      "data": {
+        "video_summary": {
+          "main_topic": "Favorite Photo Locations in Kyoto",
+          "destination_city": "Kyoto",
+          "destination_country": "Japan",
+          "overall_vibe": [
+            "photography",
+            "first-timer",
+            "relaxed"
+          ],
+          "usefulness_for_itinerary": "high",
+          "summary": "A carousel of the creator's favorite photo spots in Kyoto, from mountain shrines to the Gion backstreets."
+        },
+        "places": [
+          {
+            "name": "Kifune Shrine",
+            "place_type": "sight",
+            "city": "Kyoto",
+            "country": "Japan",
+            "parent_place": null,
+            "map_search_query": "Kifune Shrine, Kyoto, Japan",
+            "should_create_map_pin": true,
+            "confidence": "high",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [
+              "Lantern-lined stone steps, best just after opening"
+            ],
+            "best_for": [
+              "photography",
+              "adventure"
+            ],
+            "warnings_or_requirements": [
+              "Take the Eizan line to Kibuneguchi Station"
+            ],
+            "mentioned_foods_or_items": [],
+            "raw_mentions": [
+              "Kifune Shrine"
+            ]
+          },
+          {
+            "name": "Kurama Temple",
+            "place_type": "sight",
+            "city": "Kyoto",
+            "country": "Japan",
+            "parent_place": null,
+            "map_search_query": "Kurama Temple, Kyoto, Japan",
+            "should_create_map_pin": true,
+            "confidence": "high",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [
+              "Hike over the mountain from Kifune (about 90 minutes)"
+            ],
+            "best_for": [
+              "adventure",
+              "first-timer"
+            ],
+            "warnings_or_requirements": [
+              "Admission fee required"
+            ],
+            "mentioned_foods_or_items": [],
+            "raw_mentions": [
+              "Kurama Temple"
+            ]
+          },
+          {
+            "name": "Gion Minamigawa",
+            "place_type": "neighborhood",
+            "city": "Kyoto",
+            "country": "Japan",
+            "parent_place": null,
+            "map_search_query": "Gion Minamigawa, Kyoto, Japan",
+            "should_create_map_pin": true,
+            "confidence": "medium",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [
+              "Quietest before 8am"
+            ],
+            "best_for": [
+              "photography",
+              "relaxed"
+            ],
+            "warnings_or_requirements": [],
+            "mentioned_foods_or_items": [],
+            "raw_mentions": [
+              "Gion Minamigawa"
+            ]
+          },
+          {
+            "name": "Monju",
+            "place_type": "neighborhood",
+            "city": "Kyoto",
+            "country": "Japan",
+            "parent_place": null,
+            "map_search_query": "Monju, Kyoto, Japan",
+            "should_create_map_pin": true,
+            "confidence": "low",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": false,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [],
+            "best_for": [],
+            "warnings_or_requirements": [],
+            "mentioned_foods_or_items": [],
+            "raw_mentions": [
+              "Monju"
+            ]
+          }
+        ],
+        "non_place_notes": [
+          {
+            "type": "tip",
+            "text": "Buy omamori (amulets) at the shrines as souvenirs.",
+            "related_place": null
+          }
+        ],
+        "needs_user_review": [
+          {
+            "issue": "Specific place name for address '180 Kuramakibunecho, Sakyo Ward'",
+            "reason": "The carousel shows an address but no place name."
+          }
+        ]
+      }
+    },
+    {
+      "id": "tokyo-7288001122334455667",
+      "url": "https://www.tiktok.com/@eatwithmina/video/7288001122334455667",
+      "author": "@eatwithmina",
+      "trip_id": "tokyo-japan",
+      "city": "Tokyo",
+      "country": "Japan",
+      "status": "needs_review",
+      "cover_path": "",
+      "created_at": "2026-03-10T18:40:00+00:00",
+      "reviewed_at": null,
+      "transcript": "Okay so these are the five ramen shops in Tokyo that are actually worth the queue. Number one, Fuunji in Shinjuku...",
+      "screen_text": "",
+      "data": {
+        "video_summary": {
+          "main_topic": "5 Ramen Shops Worth the Queue in Tokyo",
+          "destination_city": "Tokyo",
+          "destination_country": "Japan",
+          "overall_vibe": [
+            "food",
+            "budget",
+            "local-favorite"
+          ],
+          "usefulness_for_itinerary": "high",
+          "summary": "The creator ranks five ramen shops across Tokyo, with tips on when to arrive to skip the line."
+        },
+        "places": [
+          {
+            "name": "Fuunji",
+            "place_type": "food",
+            "city": "Tokyo",
+            "country": "Japan",
+            "parent_place": null,
+            "map_search_query": "Fuunji, Tokyo, Japan",
+            "should_create_map_pin": true,
+            "confidence": "high",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": true,
+              "ocr": true
+            },
+            "creator_notes": [
+              "Go 30 minutes before opening"
+            ],
+            "best_for": [
+              "food"
+            ],
+            "warnings_or_requirements": [],
+            "mentioned_foods_or_items": [
+              "tsukemen"
+            ],
+            "raw_mentions": [
+              "Fuunji"
+            ]
+          },
+          {
+            "name": "Ichiran Shibuya",
+            "place_type": "food",
+            "city": "Tokyo",
+            "country": "Japan",
+            "parent_place": null,
+            "map_search_query": "Ichiran Shibuya, Tokyo, Japan",
+            "should_create_map_pin": true,
+            "confidence": "high",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [
+              "Open 24 hours, solo booths"
+            ],
+            "best_for": [
+              "nightlife"
+            ],
+            "warnings_or_requirements": [],
+            "mentioned_foods_or_items": [
+              "tonkotsu ramen"
+            ],
+            "raw_mentions": [
+              "Ichiran Shibuya"
+            ]
+          },
+          {
+            "name": "Afuri Ebisu",
+            "place_type": "food",
+            "city": "Tokyo",
+            "country": "Japan",
+            "parent_place": null,
+            "map_search_query": "Afuri Ebisu, Tokyo, Japan",
+            "should_create_map_pin": true,
+            "confidence": "medium",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [],
+            "best_for": [],
+            "warnings_or_requirements": [],
+            "mentioned_foods_or_items": [
+              "yuzu shio ramen"
+            ],
+            "raw_mentions": [
+              "Afuri Ebisu"
+            ]
+          },
+          {
+            "name": "Nakiryu",
+            "place_type": "food",
+            "city": "Tokyo",
+            "country": "Japan",
+            "parent_place": null,
+            "map_search_query": "Nakiryu, Tokyo, Japan",
+            "should_create_map_pin": true,
+            "confidence": "high",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [],
+            "best_for": [],
+            "warnings_or_requirements": [
+              "Cash only",
+              "Expect a 1-2 hour wait on weekends"
+            ],
+            "mentioned_foods_or_items": [
+              "tantanmen"
+            ],
+            "raw_mentions": [
+              "Nakiryu"
+            ]
+          },
+          {
+            "name": "Tsuta",
+            "place_type": "food",
+            "city": "Tokyo",
+            "country": "Japan",
+            "parent_place": null,
+            "map_search_query": "Tsuta, Tokyo, Japan",
+            "should_create_map_pin": true,
+            "confidence": "medium",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [
+              "Michelin starred, tickets handed out in the morning"
+            ],
+            "best_for": [],
+            "warnings_or_requirements": [],
+            "mentioned_foods_or_items": [
+              "shoyu soba"
+            ],
+            "raw_mentions": [
+              "Tsuta"
+            ]
+          }
+        ],
+        "non_place_notes": [
+          {
+            "type": "tip",
+            "text": "Most shops use a ticket vending machine — decide before you queue.",
+            "related_place": null
+          }
+        ],
+        "needs_user_review": []
+      }
+    },
+    {
+      "id": "lisbon-7265009988776655443",
+      "url": "https://www.tiktok.com/@sofiatravels/video/7265009988776655443",
+      "author": "@sofiatravels",
+      "trip_id": "lisbon-portugal",
+      "city": "Lisbon",
+      "country": "Portugal",
+      "status": "needs_review",
+      "cover_path": "",
+      "created_at": "2026-04-01T12:05:00+00:00",
+      "reviewed_at": null,
+      "transcript": "",
+      "screen_text": "",
+      "data": {
+        "video_summary": {
+          "main_topic": "A Perfect Day in Alfama, Lisbon",
+          "destination_city": "Lisbon",
+          "destination_country": "Portugal",
+          "overall_vibe": [
+            "relaxed",
+            "history",
+            "views"
+          ],
+          "usefulness_for_itinerary": "medium",
+          "summary": "A one-day walking route through Alfama with viewpoints, a pastry stop and a fado dinner."
+        },
+        "places": [
+          {
+            "name": "Miradouro de Santa Luzia",
+            "place_type": "sight",
+            "city": "Lisbon",
+            "country": "Portugal",
+            "parent_place": null,
+            "map_search_query": "Miradouro de Santa Luzia, Lisbon, Portugal",
+            "should_create_map_pin": true,
+            "confidence": "high",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [],
+            "best_for": [
+              "views",
+              "photography"
+            ],
+            "warnings_or_requirements": [],
+            "mentioned_foods_or_items": [],
+            "raw_mentions": [
+              "Miradouro de Santa Luzia"
+            ]
+          },
+          {
+            "name": "Castelo de Sao Jorge",
+            "place_type": "sight",
+            "city": "Lisbon",
+            "country": "Portugal",
+            "parent_place": null,
+            "map_search_query": "Castelo de Sao Jorge, Lisbon, Portugal",
+            "should_create_map_pin": true,
+            "confidence": "high",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [],
+            "best_for": [
+              "history"
+            ],
+            "warnings_or_requirements": [
+              "Book tickets online to skip the line"
+            ],
+            "mentioned_foods_or_items": [],
+            "raw_mentions": [
+              "Castelo de Sao Jorge"
+            ]
+          },
+          {
+            "name": "Pasteis de Belem",
+            "place_type": "food",
+            "city": "Lisbon",
+            "country": "Portugal",
+            "parent_place": null,
+            "map_search_query": "Pasteis de Belem, Lisbon, Portugal",
+            "should_create_map_pin": true,
+            "confidence": "medium",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [
+              "Worth the tram ride out to Belem"
+            ],
+            "best_for": [],
+            "warnings_or_requirements": [],
+            "mentioned_foods_or_items": [
+              "pastel de nata"
+            ],
+            "raw_mentions": [
+              "Pasteis de Belem"
+            ]
+          },
+          {
+            "name": "Clube de Fado",
+            "place_type": "food",
+            "city": "Lisbon",
+            "country": "Portugal",
+            "parent_place": "Alfama",
+            "map_search_query": "Clube de Fado, Lisbon, Portugal",
+            "should_create_map_pin": true,
+            "confidence": "high",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [],
+            "best_for": [
+              "food",
+              "nightlife"
+            ],
+            "warnings_or_requirements": [
+              "Reservation required"
+            ],
+            "mentioned_foods_or_items": [],
+            "raw_mentions": [
+              "Clube de Fado"
+            ]
+          }
+        ],
+        "non_place_notes": [
+          {
+            "type": "tip",
+            "text": "Tram 28 gets very crowded after 10am — ride it early or walk.",
+            "related_place": null
+          }
+        ],
+        "needs_user_review": [
+          {
+            "issue": "Which fado house was shown at 0:42",
+            "reason": "The sign was partially out of frame."
+          }
+        ]
+      }
+    },
+    {
+      "id": "porto-7255443322110099887",
+      "url": "https://www.tiktok.com/@sofiatravels/photo/7255443322110099887",
+      "author": "@sofiatravels",
+      "trip_id": "porto-portugal",
+      "city": "Porto",
+      "country": "Portugal",
+      "status": "needs_review",
+      "cover_path": "",
+      "created_at": "2026-04-03T08:30:00+00:00",
+      "reviewed_at": null,
+      "transcript": "",
+      "screen_text": "",
+      "data": {
+        "video_summary": {
+          "main_topic": "Porto Weekend: Wine, Bridges and Bookshops",
+          "destination_city": "Porto",
+          "destination_country": "Portugal",
+          "overall_vibe": [
+            "relaxed",
+            "food"
+          ],
+          "usefulness_for_itinerary": "high",
+          "summary": "Highlights from a weekend in Porto: a port wine cellar tour, the Dom Luis I bridge at dusk and a famous bookshop."
+        },
+        "places": [
+          {
+            "name": "Livraria Lello",
+            "place_type": "shopping",
+            "city": "Porto",
+            "country": "Portugal",
+            "parent_place": null,
+            "map_search_query": "Livraria Lello, Porto, Portugal",
+            "should_create_map_pin": true,
+            "confidence": "high",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [],
+            "best_for": [
+              "history"
+            ],
+            "warnings_or_requirements": [
+              "Timed entry ticket required (redeemable against a book)"
+            ],
+            "mentioned_foods_or_items": [],
+            "raw_mentions": [
+              "Livraria Lello"
+            ]
+          },
+          {
+            "name": "Ponte Dom Luis I",
+            "place_type": "sight",
+            "city": "Porto",
+            "country": "Portugal",
+            "parent_place": null,
+            "map_search_query": "Ponte Dom Luis I, Porto, Portugal",
+            "should_create_map_pin": true,
+            "confidence": "high",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [],
+            "best_for": [
+              "views",
+              "photography"
+            ],
+            "warnings_or_requirements": [],
+            "mentioned_foods_or_items": [],
+            "raw_mentions": [
+              "Ponte Dom Luis I"
+            ]
+          },
+          {
+            "name": "Graham's Port Lodge",
+            "place_type": "bar",
+            "city": "Porto",
+            "country": "Portugal",
+            "parent_place": null,
+            "map_search_query": "Graham's Port Lodge, Porto, Portugal",
+            "should_create_map_pin": true,
+            "confidence": "medium",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [
+              "Tour and tasting, book the late afternoon slot"
+            ],
+            "best_for": [],
+            "warnings_or_requirements": [],
+            "mentioned_foods_or_items": [
+              "tawny port"
+            ],
+            "raw_mentions": [
+              "Graham's Port Lodge"
+            ]
+          }
+        ],
+        "non_place_notes": [],
+        "needs_user_review": []
+      }
+    },
+    {
+      "id": "mexico-city-7244556677889900112",
+      "url": "https://www.tiktok.com/@tacotour/video/7244556677889900112",
+      "author": "@tacotour",
+      "trip_id": "mexico-city-mexico",
+      "city": "Mexico City",
+      "country": "Mexico",
+      "status": "needs_review",
+      "cover_path": "",
+      "created_at": "2026-04-20T22:10:00+00:00",
+      "reviewed_at": null,
+      "transcript": "If you only eat one thing in Mexico City make it tacos al pastor and these are my three spots...",
+      "screen_text": "",
+      "data": {
+        "video_summary": {
+          "main_topic": "Best Tacos al Pastor in CDMX",
+          "destination_city": "Mexico City",
+          "destination_country": "Mexico",
+          "overall_vibe": [
+            "food",
+            "nightlife",
+            "budget"
+          ],
+          "usefulness_for_itinerary": "high",
+          "summary": "Three taquerias the creator swears by for tacos al pastor, plus what to order at each."
+        },
+        "places": [
+          {
+            "name": "El Huequito",
+            "place_type": "food",
+            "city": "Mexico City",
+            "country": "Mexico",
+            "parent_place": null,
+            "map_search_query": "El Huequito, Mexico City, Mexico",
+            "should_create_map_pin": true,
+            "confidence": "high",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [
+              "The original 1959 location downtown"
+            ],
+            "best_for": [],
+            "warnings_or_requirements": [],
+            "mentioned_foods_or_items": [
+              "tacos al pastor"
+            ],
+            "raw_mentions": [
+              "El Huequito"
+            ]
+          },
+          {
+            "name": "Taqueria Orinoco",
+            "place_type": "food",
+            "city": "Mexico City",
+            "country": "Mexico",
+            "parent_place": null,
+            "map_search_query": "Taqueria Orinoco, Mexico City, Mexico",
+            "should_create_map_pin": true,
+            "confidence": "high",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [],
+            "best_for": [
+              "nightlife"
+            ],
+            "warnings_or_requirements": [],
+            "mentioned_foods_or_items": [
+              "al pastor",
+              "chicharron taco"
+            ],
+            "raw_mentions": [
+              "Taqueria Orinoco"
+            ]
+          },
+          {
+            "name": "Los Cocuyos",
+            "place_type": "food",
+            "city": "Mexico City",
+            "country": "Mexico",
+            "parent_place": null,
+            "map_search_query": "Los Cocuyos, Mexico City, Mexico",
+            "should_create_map_pin": true,
+            "confidence": "medium",
+            "why_confidence": "Named explicitly on screen and in the caption",
+            "source_evidence": {
+              "caption": true,
+              "transcript": false,
+              "ocr": true
+            },
+            "creator_notes": [],
+            "best_for": [],
+            "warnings_or_requirements": [
+              "Cash only"
+            ],
+            "mentioned_foods_or_items": [
+              "suadero",
+              "campechano"
+            ],
+            "raw_mentions": [
+              "Los Cocuyos"
+            ]
+          }
+        ],
+        "non_place_notes": [
+          {
+            "type": "tip",
+            "text": "Ask for 'con todo' to get onion, cilantro and pineapple.",
+            "related_place": null
+          }
+        ],
+        "needs_user_review": []
+      }
+    }
+  ]
+}

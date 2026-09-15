@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How it works — Travel Saver</title>
+<style>
+{{BASE_CSS}}
+  .hero { margin-bottom: 40px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 40px; }
+  .step { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 18px 20px; }
+  .step .n { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+  .step h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .step p { font-size: 14px; color: var(--ink-2); line-height: 1.5; }
+  .group { margin-bottom: 28px; }
+  .group p.intro { font-size: 14px; color: var(--ink-2); line-height: 1.5; margin: -6px 0 14px; max-width: 620px; }
+  .legend { display: grid; grid-template-columns: 1fr; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surface); }
+  .legend-row { display: grid; grid-template-columns: 190px 1fr; gap: 16px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-2); line-height: 1.45; }
+  .legend-row:first-child { border-top: 0; }
+  .legend-row .tag, .legend-row .ev, .legend-row .note-type { justify-self: start; }
+  .promise { background: var(--surface-2); border-radius: 16px; padding: 18px 20px; font-size: 14px; color: var(--ink-2); line-height: 1.55; max-width: 720px; }
+  .promise b { color: var(--ink); }
+  @media (max-width: 720px) {
+    .steps { grid-template-columns: 1fr; }
+    .legend-row { grid-template-columns: 1fr; gap: 6px; }
+  }
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <div class="crumbs"><a href="/" class="brand"><span class="brand-mark">🧭</span> Travel Saver</a><span>/</span><b>How it works</b></div>
+  <div class="topbar-actions"><a href="/" class="btn">← Back to trips</a></div>
+</nav>
+
+<main class="container narrow">
+  <section class="hero">
+    <div class="eyebrow">About</div>
+    <h1>Saved TikToks, turned into a trip.</h1>
+    <p class="lede">You keep saving travel TikToks and never look at them again. Travel Saver reads each one for you and pulls out the places worth remembering, sorted into the city you're planning.</p>
+  </section>
+
+  <div class="steps">
+    <div class="step"><span class="n">1</span><h3>Create a city trip</h3><p>One trip per city — Tokyo and Kyoto are separate. Pick the country, then the city.</p></div>
+    <div class="step"><span class="n">2</span><h3>Paste TikToks</h3><p>Videos, photo carousels and short links. We read the <b>caption</b>, transcribe the <b>audio</b>, and OCR the <b>on-screen text</b>.</p></div>
+    <div class="step"><span class="n">3</span><h3>Review what we found</h3><p>Every place shows where it was mentioned and how sure we are. You stay in charge of what makes the trip.</p></div>
+  </div>
+
+  <div class="promise">
+    <b>Nothing is invented.</b> A place only appears if the creator actually named, visited or recommended it in the caption, audio or on-screen text. Street names on a map screenshot, background signage and generic categories like "a rooftop café" are left out — or flagged for you under <b>Needs your review</b>.
+  </div>
+
+  <div class="section-head" id="labels" style="margin-top:44px"><h2>What the labels mean</h2><span>Hover any label in the app for the same explanation</span></div>
+
+  <div class="group">
+    <div class="section-head"><h2 style="font-size:15px">Place types</h2><span>one per place</span></div>
+    <p class="intro">A fixed set, so "cafe", "coffee shop" and "café" never become three different labels. Anything the AI can't fit gets <em>Other</em>.</p>
+    <div class="legend" data-group="place_types" data-class="place-type"></div>
+  </div>
+
+  <div class="group">
+    <div class="section-head"><h2 style="font-size:15px">Tags</h2><span>up to four per video or place</span></div>
+    <p class="intro">Who a place is for and when to go. These are what you'll filter by when planning.</p>
+    <div class="legend" data-group="tags" data-class="tag vibe"></div>
+  </div>
+
+  <div class="group">
+    <div class="section-head"><h2 style="font-size:15px">Confidence</h2><span>per place</span></div>
+    <p class="intro">How sure we are that this is a real, specific place the creator recommends.</p>
+    <div class="legend" data-group="confidence" data-class="tag" data-class-key="1"></div>
+  </div>
+
+  <div class="group">
+    <div class="section-head"><h2 style="font-size:15px">Usefulness</h2><span>per video</span></div>
+    <p class="intro">How much a TikTok gives you to actually plan with.</p>
+    <div class="legend" data-group="usefulness" data-class="tag" data-class-key="1"></div>
+  </div>
+
+  <div class="group">
+    <div class="section-head"><h2 style="font-size:15px">Sources</h2><span>per place</span></div>
+    <p class="intro">Green means the place was mentioned in that source. A place found in all three is very unlikely to be a mistake.</p>
+    <div class="legend" data-group="sources" data-class="ev on"></div>
+  </div>
+
+  <div class="group">
+    <div class="section-head"><h2 style="font-size:15px">Notes</h2><span>per video</span></div>
+    <p class="intro">Useful things that aren't a pin on a map — dishes to try, etiquette, when to go.</p>
+    <div class="legend" data-group="note_types" data-class="note-type"></div>
+  </div>
+</main>
+
+<script>
+const LABELS = {{LABELS_JSON}};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+for (const el of document.querySelectorAll('.legend')) {
+  const items = LABELS[el.dataset.group] || [];
+  el.innerHTML = items.map(i => {
+    const cls = el.dataset.classKey ? `${el.dataset.class} ${i.key}` : el.dataset.class;
+    return `<div class="legend-row"><span class="${cls}">${esc(i.label)}</span><span>${esc(i.help)}</span></div>`;
+  }).join('');
+}
+</script>
+</body>
+</html>

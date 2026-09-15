@@ -27,14 +27,14 @@ JSON SCHEMA:
     "main_topic": "Short title/topic of the video, e.g. '5 things to do in Osaka'",
     "destination_city": "Main city the video is about, or null if unclear",
     "destination_country": "Main country the video is about, or null if unclear",
-    "overall_vibe": ["List of vibe/use-case tags, e.g. 'food', 'sightseeing', 'first-time visitor', 'casual exploring'"],
+    "overall_vibe": ["Up to 4 tags describing who this video is for. ONLY use values from TAGS below."],
     "usefulness_for_itinerary": "high | medium | low — how useful is this video for trip planning?",
     "summary": "One or two sentence human-readable summary of the video"
   },
   "places": [
     {
       "name": "Clean place name, e.g. 'Dotonbori' not '1️⃣ Explore Dotonbori (street food restaurants bars)'",
-      "place_type": "One of: restaurant, cafe, bar, landmark, neighborhood, attraction, activity, shopping, hotel, park, museum, transit, shrine, unknown",
+      "place_type": "Exactly one of PLACE TYPES below",
       "city": "City for this specific place, or null",
       "country": "Country for this specific place, or null",
       "parent_place": "If this place is inside another place, name the parent. e.g. 'Super Nintendo World' has parent 'Universal Studios Japan'. Otherwise null",
@@ -48,7 +48,7 @@ JSON SCHEMA:
         "ocr": "true or false — was this place mentioned in the on-screen text?"
       },
       "creator_notes": ["Useful details the creator shared about this place, e.g. 'Castle park is free to enter', 'There is a rooftop cafe with iced matcha'"],
-      "best_for": ["What this place is good for, e.g. 'street food', 'nightlife', 'views', 'history'"],
+      "best_for": ["Up to 4 tags for what this place is good for. ONLY use values from TAGS below."],
       "warnings_or_requirements": ["Practical notes like 'Book in advance', 'Arrive early', 'Closed on Mondays'"],
       "mentioned_foods_or_items": ["Specific foods or items mentioned for this place, e.g. 'takoyaki', 'okonomiyaki', 'iced matcha'"],
       "raw_mentions": ["Short quotes from the original sources that mention this place, for traceability"]
@@ -69,6 +69,35 @@ JSON SCHEMA:
   ]
 }
 
+PLACE TYPES (use the exact lowercase value):
+- food — restaurants, street-food stalls, bakeries, taquerias, anywhere you go to eat
+- cafe — coffee, tea and dessert spots
+- bar — bars, wineries, breweries, cocktail spots, nightlife venues
+- sight — landmarks, temples, shrines, monuments, museums, viewpoints
+- nature — parks, gardens, beaches, hikes, mountains
+- neighborhood — districts, streets and areas to wander
+- shopping — shops, markets, malls, bookstores
+- activity — tours, classes, theme parks, baths, shows; things you do rather than see
+- hotel — hotels, hostels, ryokans, places to sleep
+- transit — stations, airports, ferries, passes
+- other — a real place that fits none of the above
+
+TAGS (use the exact lowercase value; pick only what the sources support):
+- views — skylines, sunsets, lookouts
+- photography — called out as a photo spot
+- history — temples, old towns, museums, traditions
+- local-favorite — hidden gems, where locals go
+- food — mostly about eating and drinking
+- nightlife — best after dark
+- relaxed — slow wandering, strolls, cafes
+- adventure — hikes, cycling, water sports
+- budget — free or cheap
+- splurge — fine dining, luxury, big-ticket
+- first-timer — classic must-sees for a first visit
+- with-kids — family-friendly
+- date-night — romantic
+- rainy-day — indoors
+
 RULES:
 1. Extract ONLY places and information that appear in the provided sources. Do not invent or hallucinate places.
 2. Use null for any field where the information is not clearly available.
@@ -82,3 +111,4 @@ RULES:
 10. Return ONLY the JSON object. No explanations, no markdown, no extra text.
 11. ONLY include a place if the creator is clearly recommending, visiting, or reviewing it. Ignore places that only appear on map screenshots, Google Maps, navigation screens, or background signage that the creator is not actively featuring. Street names, neighborhood labels, hotel names, and other text visible on maps are NOT recommendations.
 12. When in doubt about whether the creator intentionally featured a place vs. it just being visible in the background or on a map, do NOT include it as a place. The bar for inclusion should be: "Did the creator go here, talk about it, or show it as a recommendation?"
+13. place_type, overall_vibe and best_for MUST use only the exact values listed under PLACE TYPES and TAGS. Never invent new labels; if nothing fits, use "other" for place_type or leave the tag list empty.

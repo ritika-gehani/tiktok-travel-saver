@@ -1,0 +1,9 @@
+# Extraction pipeline (paste-a-TikTok-link feature). Also needs `yt-dlp` on PATH
+# and `playwright install chromium`.
+-r requirements.txt
+yt-dlp[default]
+curl_cffi
+opencv-python
+google-genai
+assemblyai
+playwright
